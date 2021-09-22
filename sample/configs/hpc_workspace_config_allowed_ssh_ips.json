@@ -1,7 +1,7 @@
 {
   "name": "Sample Schematic CLI workspace",
   "type": [
-    "terraform_v0.13.6"
+    "terraform_v0.14.11"
   ],
   "location": "us-east",
   "description": "HPC Cluster schematic workspace using CLI",
@@ -13,7 +13,7 @@
   "template_data": [
     {
       "folder": ".",
-      "type": "terraform_v0.13.6",
+      "type": "terraform_v0.14.11",
       "env_values":[
         {
           "TF_CLI_ARGS_apply": "-parallelism=250"
@@ -57,6 +57,12 @@
           "description": "If you have confirmed the availability of a Spectrum LSF license for a production cluster on IBM Cloud OR if you are deploying a non-production cluster, enter 'true'. NOTE: Failure to comply with licenses for production use of software is a violation of IBM International Program License Agreement. [Learn more](https://www.ibm.com/software/passportadvantage/programlicense.html)"
         },
         {
+          "name": "vpc_name",
+          "value": "",
+          "type": "string",
+          "description": "Name of the existing VPC which can be part of the cluster. If no value given then, a new VPC will be provisioned as part of the cluster. [Learn more](https://cloud.ibm.com/docs/vpc)"
+        },
+        {
           "name": "lsf_entitlement",
           "value": "LSF_Standard  10.1  ()  ()  ()  pa  3f08e215230ffe4608213630cd5ef1d8c9b4dfea",
           "type": "string",
@@ -93,7 +99,7 @@
         },
         {
           "name": "image_name",
-          "value": "hpcc-lsf10-cent77-jun0421-v5",
+          "value": "hpcc-lsf10-cent77-jul2221-v6",
           "type": "string",
           "secure": false,
          "description": "Name of the custom image that you would like to use to create virtual machines in your IBM Cloud account to deploy Spectrum LSF Cluster. By default, our automation uses a base image with following HPC related packages documented here [Learn more](https://cloud.ibm.com/docs/ibm-spectrum-lsf). If you would like to include your application specific binaries please follow the instructions [Learn more](https://cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the Spectrum LSF cluster through this offering."
@@ -176,11 +182,46 @@
          "description": "Name of the block storage volume type to be used for NFS instance. [Learn more](https://cloud.ibm.com/docs/vpc?topic=vpc-block-storage-profiles)"
         },
         {
-          "name": "TF_VERSION",
-          "value": "0.13",
-          "type": "string",
+          "name": "hyperthreading_enabled",
+          "value": "true",
+          "type": "bool",
           "secure": false,
          "description":"The version of the Terraform engine that's used in the Schematics workspace."
+        },
+        {
+          "name": "vpn_enabled",
+          "value": "false",
+          "type": "bool",
+          "secure": false,
+          "description": "Set to true to deploy a VPN gateway for VPC in the cluster (default: false)."
+        },
+        {
+          "name": "vpn_preshared_key",
+          "value": "",
+          "type": "string",
+          "secure": true,
+          "description": "The pre-shared key for the VPN."
+        },
+        {
+          "name": "vpn_peer_cidrs",
+          "value": "",
+          "type": "string",
+          "secure": false,
+          "description": "Comma separated list of peer CIDRs (e.g., 192.168.0.0/24) to which the VPN will be connected."
+        },
+        {
+          "name": "vpn_peer_address",
+          "value": "",
+          "type": "string",
+          "secure": false,
+          "description": "The peer public IP address to which the VPN will be connected."
+        },
+        {
+          "name": "TF_VERSION",
+          "value": "0.14",
+          "type": "string",
+          "secure": false,
+          "description":"The version of the Terraform engine that's used in the Schematics workspace."
         }
       ]
     }
