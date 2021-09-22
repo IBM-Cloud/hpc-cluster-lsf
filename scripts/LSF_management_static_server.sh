@@ -20,15 +20,7 @@ else
   cluster_name="BigComputeCluster"
 fi
 newclustername=$cluster_name
-
-#No rquirement of having the below as user input, following defaults will be used
-ncores="1"
 vmPrefix="icgen2host"
-
-# Change the MTU setting
-ip link set mtu 9000 dev eth0
-echo "MTU=9000" >> /etc/sysconfig/network-scripts/ifcfg-eth0
-echo "PEERDNS=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0
 
 #If no dns, then will fixed the hostname based on provate IP address and hostname, if you have dns server, then can completely remove this part
 privateIP=$(ip addr show eth0 | awk '$1 == "inet" {gsub(/\/.*$/, "", $2); print $2}')
@@ -37,6 +29,13 @@ hostnamectl set-hostname ${ManagementHostName}
 networkIPrange=$(echo ${privateIP}|cut -f1-3 -d .)
 host_prefix=$(hostname|cut -f1-4 -d -)
 
+# Change the MTU setting
+for masterIP in $master_ips; do
+  if [ "$masterIP" != "$privateIP" ]; then
+      ip route add $masterIP dev eth0 mtu 9000
+      echo 'ip route add '$masterIP' dev eth0 mtu 9000' >> /etc/sysconfig/network-scripts/route-eth0
+  fi
+done
 
 # NOTE: On ibm gen2, the default DNS server do not have reverse hostname/IP resolution.
 # 1) put the master server hostname and ip into lsf hosts.
@@ -52,26 +51,10 @@ if ([ -n "${nfs_server}" ] && [ -n "${nfs_mount_dir}" ]); then
   mount -t nfs $nfs_server:/$nfs_mount_dir /mnt/$nfs_mount_dir >> $logfile
   df -h /mnt/$nfs_mount_dir >> $logfile
   #make auto mount when server is down
-  echo "$nfs_server:/$nfs_mount_dir /mnt/$nfs_mount_dir nfs defaults 0 0 " >> /etc/fstab
+  echo "$nfs_server:/$nfs_mount_dir /mnt/$nfs_mount_dir nfs rw,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,_netdev 0 0 " >> /etc/fstab
   echo "Mount nfs share done!" >> $logfile
-  if [ -d /mnt/$nfs_mount_dir/lsf_$ManagementHostName ]; then
-    echo "lsf directory already exits in nfs share" >> $logfile
-    lsf_link=$(ls -la /opt/ibm/lsf | grep "\->")
-    echo $lsf_link
-    if [ -n "${lsf_link}" ]; then 
-      echo "lsf linked to the share already" >>  $logfile
-    else
-      echo "link the lsf to share location" >> $logfile
-      mv /opt/ibm/lsf /opt/ibm/lsf_org
-      ln -fs /mnt/$nfs_mount_dir/lsf_$ManagementHostName /opt/ibm/lsf
-    fi
-  #Make sure the mount location is there, but lsf is not in the mount
-  elif [ -d /mnt/$nfs_mount_dir ]; then
-    #backup orignal lsf installation
-    cp -rpf /opt/ibm/lsf /opt/ibm/lsf_org 
-  else
-    echo "nfs filesystem not mounted" >> $logfile
-  fi  
+  # delete old config dir
+  rm -rf /mnt/$nfs_mount_dir/lsf_$ManagementHostName /mnt/$nfs_mount_dir/ssh
   # Generate and copy a public ssh key
   mkdir -p /mnt/$nfs_mount_dir/ssh /home/lsfadmin/.ssh
   ssh-keygen -q -t rsa -f /root/.ssh/id_rsa -C "lsfadmin@${ManagementHostName}" -N "" -q
@@ -163,12 +146,22 @@ sed -i "s/securityGroupIds-value/${securityGroupID}/" $IBM_CLOUD_TEMPLATE_FILE
 sed -i "s/sshkey_id-value/${sshkey_ID}/" $IBM_CLOUD_TEMPLATE_FILE
 sed -i "s/region-value/${regionName}/" $IBM_CLOUD_TEMPLATE_FILE
 sed -i "s/zone-value/${zoneName}/" $IBM_CLOUD_TEMPLATE_FILE
-sed -i "s/template1-ncores/${ncores}/" $IBM_CLOUD_TEMPLATE_FILE
-sed -i "s/template1-ncpus/${rc_ncores}/" $IBM_CLOUD_TEMPLATE_FILE
+sed -i "s/template1-ncores/${rc_ncores}/" $IBM_CLOUD_TEMPLATE_FILE
+sed -i "s/template1-ncpus/${rc_ncpus}/" $IBM_CLOUD_TEMPLATE_FILE
 sed -i "s/template1-mem/${rc_memInMB}/" $IBM_CLOUD_TEMPLATE_FILE
 sed -i "s/template1-vmType/${rc_profile}/" $IBM_CLOUD_TEMPLATE_FILE
 sed -i "s/template1_maxNum/${rc_maxNum}/" $IBM_CLOUD_TEMPLATE_FILE
+sed -i "s/rgId-value/${rc_rg}/" $IBM_CLOUD_TEMPLATE_FILE
 sed -i "s/icgen2host/${vmPrefix}/" $IBM_CLOUD_CONF_FILE
+
+if $hyperthreading; then
+  echo "EGO_DEFINE_NCPUS=threads" >> $LSF_CONF_FILE
+else
+  echo "EGO_DEFINE_NCPUS=cores" >> $LSF_CONF_FILE
+  for vcpu in `cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | cut -s -d- -f2 | cut -d- -f2 | uniq`; do
+    echo 0 > /sys/devices/system/cpu/cpu$vcpu/online
+  done
+fi
 
 # Insert our custom user script to workers' user data
 cat << EOF >> /tmp/client.sh
@@ -184,14 +177,38 @@ systemctl restart sshd
 #echo "LSF_MQ_BROKER_HOSTS=\"${ManagementHostNames}\"" >> /opt/ibm/lsf_worker/conf/lsf.conf
 EOF
 
+if $hyperthreading; then
+cat << EOF >> /tmp/client.sh
+EGO_DEFINE_NCPUS=threads >> /opt/ibm/lsf_worker/conf/lsf.conf
+EOF
+else
+cat << EOF >> /tmp/client.sh
+EGO_DEFINE_NCPUS=cores >> /opt/ibm/lsf_worker/conf/lsf.conf
+for vcpu in \`cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | cut -s -d- -f2 | cut -d- -f2 | uniq\`; do
+  echo 0 > /sys/devices/system/cpu/cpu\$vcpu/online
+done
+EOF
+fi
+
 sed -i 's#for ((i=1; i<=254; i++))#for ((i=1; i<=0; i++))#g' $IBM_CLOUD_USER_DATA_FILE
 sed -i "/# Add your customization script here/r /tmp/client.sh" $IBM_CLOUD_USER_DATA_FILE
 
 #Move the lsf intallation to the share location
-mv /opt/ibm/lsf /mnt/$nfs_mount_dir/lsf_$ManagementHostName.tmp # indirectly copying files to avoid race condition
+mkdir -p /mnt/$nfs_mount_dir/lsf_$ManagementHostName.tmp
+cp -a -r /opt/ibm/lsf/conf /mnt/$nfs_mount_dir/lsf_$ManagementHostName.tmp/conf
+cp -a -r /opt/ibm/lsf/work /mnt/$nfs_mount_dir/lsf_$ManagementHostName.tmp/work
+cp -a -r /opt/ibm/lsf/das_staging_area /mnt/$nfs_mount_dir/lsf_$ManagementHostName.tmp/das_staging_area
+mkdir -p /mnt/$nfs_mount_dir/lsf_$ManagementHostName.tmp/log
+mv /opt/ibm/lsf/conf /opt/ibm/lsf/conf_orig
+mv /opt/ibm/lsf/das_staging_area /opt/ibm/lsf/das_staging_area_orig
+rm -rf /opt/ibm/lsf/work /opt/ibm/lsf/log
 mv /mnt/$nfs_mount_dir/lsf_$ManagementHostName.tmp /mnt/$nfs_mount_dir/lsf_$ManagementHostName
 #link lsf back to its original installation location
-ln -fs /mnt/$nfs_mount_dir/lsf_$ManagementHostName /opt/ibm/lsf
+ln -fs /mnt/$nfs_mount_dir/lsf_$ManagementHostName/conf /opt/ibm/lsf/conf
+ln -fs /mnt/$nfs_mount_dir/lsf_$ManagementHostName/work /opt/ibm/lsf/work
+ln -fs /mnt/$nfs_mount_dir/lsf_$ManagementHostName/log /opt/ibm/lsf/log
+chown lsfadmin:root /mnt/$nfs_mount_dir/lsf_$ManagementHostName/log
+ln -fs /mnt/$nfs_mount_dir/lsf_$ManagementHostName/das_staging_area /opt/ibm/lsf/das_staging_area
 echo "moved lsf into nfs share location and link back done" >> $logfile
 
 ln -s /mnt/$nfs_mount_dir /home/lsfadmin/shared
@@ -202,8 +219,24 @@ cat /root/.ssh/authorized_keys >> /home/lsfadmin/.ssh/authorized_keys
 chmod 600 /home/lsfadmin/.ssh/authorized_keys
 chmod 700 /home/lsfadmin/.ssh
 chown -R lsfadmin:lsfadmin /home/lsfadmin/.ssh
-echo "source /opt/ibm/lsf/conf/profile.lsf" >> /etc/profile.d/lsf.sh
-echo 'export PDSH_SSH_ARGS_APPEND="-o StrictHostKeyChecking=no"' >> /etc/profile.d/lsf.sh
+cat << EOF > /etc/profile.d/lsf.sh
+ls /opt/ibm/lsf/conf/lsf.conf > /dev/null 2> /dev/null < /dev/null &
+usleep 10000
+PID=\$!
+if kill -0 \$PID 2> /dev/null; then
+  # lsf.conf is not accessible 
+  kill -KILL \$PID 2> /dev/null > /dev/null
+  wait \$PID
+else
+  source /opt/ibm/lsf/conf/profile.lsf
+fi
+export PDSH_SSH_ARGS_APPEND="-o StrictHostKeyChecking=no"
+PATHs=\`echo "\$PATH" | sed -e 's/:/\n/g'\`
+for path in /usr/local/bin /usr/bin /usr/local/sbin /usr/sbin; do
+  PATHs=\`echo "\$PATHs" | grep -v \$path\`
+done
+export PATH=/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:\`echo "\$PATHs" | paste -s -d :\`
+EOF
 # TODO: disallow root login
 
 cat $LSF_HOSTS_FILE >> $logfile
@@ -212,6 +245,9 @@ cat $LS_ENTITLEMENT_FILE >> $logfile
 cat $IBM_CLOUD_CREDENTIALS_FILE >> $logfile
 cat $IBM_CLOUD_TEMPLATE_FILE >> $logfile
 cat $IBM_CLOUD_USER_DATA_FILE >> $logfile
+
+echo 1 > /proc/sys/vm/overcommit_memory # new image requires this. otherwise, it reports many failures of memory allocation at fork() if we use candidates. why?
+echo 'vm.overcommit_memory=1' > /etc/sysctl.d/90-lsf.conf
 
 sleep 5
 lsf_daemons start &

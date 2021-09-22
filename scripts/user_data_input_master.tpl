@@ -32,11 +32,13 @@ rc_cidr_block="${rc_cidr_block}"
 rc_profile="${rc_profile}"
 # number of cores for the instance profile
 rc_ncores=${rc_ncores}
+rc_ncpus=${rc_ncpus}
 # memory size in MB for the instance profile
 rc_memInMB=${rc_memInMB}
 # the maximum allowed dynamic hosts created by RC
 rc_maxNum=${rc_maxNum}
+rc_rg=${rc_rg}
 master_ips="${master_ips}"
-worker_ips="${worker_ips}"
 storage_ips="${storage_ips}"
 cluster_name="HPCCluster"
+hyperthreading="${hyperthreading}"
