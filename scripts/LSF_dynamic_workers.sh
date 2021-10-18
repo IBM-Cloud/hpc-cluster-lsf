@@ -73,7 +73,7 @@ chmod 600 /home/lsfadmin/.ssh/authorized_keys
 chmod 700 /home/lsfadmin/.ssh
 chown -R lsfadmin:lsfadmin /home/lsfadmin/.ssh
 cat << EOF > /etc/profile.d/lsf.sh
-ls /opt/ibm/lsf/conf/lsf.conf > /dev/null 2> /dev/null < /dev/null &
+ls /opt/ibm/lsf_worker/conf/lsf.conf > /dev/null 2> /dev/null < /dev/null &
 usleep 10000
 PID=\$!
 if kill -0 \$PID 2> /dev/null; then
@@ -81,7 +81,7 @@ if kill -0 \$PID 2> /dev/null; then
   kill -KILL \$PID 2> /dev/null > /dev/null
   wait \$PID
 else
-  source /opt/ibm/lsf/conf/profile.lsf
+  source /opt/ibm/lsf_worker/conf/profile.lsf
 fi
 PATHs=\`echo "\$PATH" | sed -e 's/:/\n/g'\`
 for path in /usr/local/bin /usr/bin /usr/local/sbin /usr/sbin; do

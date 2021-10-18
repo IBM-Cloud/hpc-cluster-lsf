@@ -62,7 +62,7 @@ locals {
 }
 
 locals {
-  new_image_id = contains(keys(local.image_region_map), var.image_name) ? lookup(lookup(local.image_region_map, var.image_name), var.region) : data.ibm_is_image.image.id
+  new_image_id = contains(keys(local.image_region_map), var.image_name) ? lookup(lookup(local.image_region_map, var.image_name), var.region) : "Image not found with the given name"
   
   // Use existing VPC if var.vpc_name is not empty
   vpc_name = var.vpc_name == "" ? ibm_is_vpc.vpc.*.name[0] : data.ibm_is_vpc.existing_vpc.*.name[0]
@@ -256,10 +256,6 @@ resource "ibm_is_security_group_rule" "ingress_all_local" {
   group     = ibm_is_security_group.sg.id
   direction = "inbound"
   remote    = ibm_is_security_group.sg.id
-}
-
-data "ibm_is_image" "image" {
-  name = var.image_name
 }
 
 data "ibm_is_ssh_key" "ssh_key" {
