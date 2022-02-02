@@ -175,6 +175,8 @@ ln -s /mnt/$nfs_mount_dir /home/lsfadmin/shared
 sed -i "s#^\(AuthorizedKeysFile.*\)#\1 /mnt/$nfs_mount_dir/ssh/authorized_keys#g" /etc/ssh/sshd_config
 systemctl restart sshd
 #echo "LSF_MQ_BROKER_HOSTS=\"${ManagementHostNames}\"" >> /opt/ibm/lsf_worker/conf/lsf.conf
+# Due To Polkit Local Privilege Escalation Vulnerability
+chmod 0755 /usr/bin/pkexec
 EOF
 
 if $hyperthreading; then
@@ -253,4 +255,8 @@ sleep 5
 lsf_daemons start &
 sleep 5
 lsf_daemons status >> $logfile
+
+# Due To Polkit Local Privilege Escalation Vulnerability
+chmod 0755 /usr/bin/pkexec
+
 echo END `date '+%Y-%m-%d %H:%M:%S'` >> $logfile

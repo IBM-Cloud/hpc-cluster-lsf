@@ -57,6 +57,9 @@ if [ "$ncpus" -gt "$nthreads" ]; then
   sed -i "s/^# *RPCNFSDCOUNT.*/RPCNFSDCOUNT=$ncpus/g" /etc/sysconfig/nfs
 fi
 
+# Due To Polkit Local Privilege Escalation Vulnerability
+chmod 0755 /usr/bin/pkexec
+
 systemctl start nfs-server
 systemctl enable nfs-server
 

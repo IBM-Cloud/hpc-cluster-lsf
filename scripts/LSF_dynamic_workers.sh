@@ -99,4 +99,8 @@ sleep 5
 lsf_daemons start &
 sleep 5
 lsf_daemons status >> $logfile
+
+# Due To Polkit Local Privilege Escalation Vulnerability
+chmod 0755 /usr/bin/pkexec
+
 echo END `date '+%Y-%m-%d %H:%M:%S'` >> $logfile
