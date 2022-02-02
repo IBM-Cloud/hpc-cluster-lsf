@@ -49,7 +49,9 @@ locals {
     "storage" = file("${path.module}/scripts/user_data_input_storage.tpl")
     "master"  = file("${path.module}/scripts/user_data_input_master.tpl")
     "worker"  = file("${path.module}/scripts/user_data_input_worker.tpl")
+    "login"  = file("${path.module}/scripts/user_data_login.tpl")
   }
+  login_template_file   = lookup(local.script_map, "login")
   storage_template_file = lookup(local.script_map, "storage")
   master_template_file  = lookup(local.script_map, "master")
   worker_template_file  = lookup(local.script_map, "worker")
@@ -68,6 +70,9 @@ locals {
   vpc_name = var.vpc_name == "" ? ibm_is_vpc.vpc.*.name[0] : data.ibm_is_vpc.existing_vpc.*.name[0]
 }
 
+data "template_file" "login_user_data" {
+  template = local.login_template_file
+}
 
 data "template_file" "storage_user_data" {
   template = local.storage_template_file
@@ -283,6 +288,7 @@ resource "ibm_is_instance" "login" {
   zone           = data.ibm_is_zone.zone.name
   keys           = local.ssh_key_id_list
   resource_group = data.ibm_resource_group.rg.id
+  user_data      = data.template_file.login_user_data.rendered
   tags           = local.tags
 
   # fip will be assinged
