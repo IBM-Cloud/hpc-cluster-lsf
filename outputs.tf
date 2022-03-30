@@ -14,3 +14,7 @@ output "vpc_name" {
 output "vpn_config_info" {
   value = var.vpn_enabled ? "IP: ${ibm_is_vpn_gateway.vpn[0].public_ip_address}, CIDR: ${ibm_is_subnet.subnet.ipv4_cidr_block}, UDP ports: 500, 4500": null
 }
+
+output "image_map_entry_found" {
+  value = "${local.image_mapping_entry_found} --  - ${var.image_name}"
+}

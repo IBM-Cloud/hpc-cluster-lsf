@@ -64,10 +64,17 @@ locals {
 }
 
 locals {
-  new_image_id = contains(keys(local.image_region_map), var.image_name) ? lookup(lookup(local.image_region_map, var.image_name), var.region) : "Image not found with the given name"
-  
+  // Check whether an entry is found in the mapping file for the given LSF custom image
+  image_mapping_entry_found = contains(keys(local.image_region_map), var.image_name)
+  new_image_id = local.image_mapping_entry_found ? lookup(lookup(local.image_region_map, var.image_name), var.region) : "Image not found with the given name"
+
   // Use existing VPC if var.vpc_name is not empty
   vpc_name = var.vpc_name == "" ? ibm_is_vpc.vpc.*.name[0] : data.ibm_is_vpc.existing_vpc.*.name[0]
+}
+
+data "ibm_is_image" "image" {
+  name = var.image_name
+  count = local.image_mapping_entry_found ? 0:1
 }
 
 data "template_file" "login_user_data" {
@@ -88,7 +95,7 @@ data "template_file" "master_user_data" {
     lsf_entitlement               = var.lsf_entitlement
     vpc_apikey_value              = var.api_key
     resource_records_apikey_value = var.api_key
-    image_id                      = local.new_image_id
+    image_id                      = local.image_mapping_entry_found ? local.new_image_id : data.ibm_is_image.image[0].id
     subnet_id                     = ibm_is_subnet.subnet.id
     security_group_id             = ibm_is_security_group.sg.id
     sshkey_id                     = data.ibm_is_ssh_key.ssh_key[local.ssh_key_list[0]].id
@@ -395,7 +402,7 @@ resource "ibm_is_instance" "storage" {
 resource "ibm_is_instance" "master" {
   count          = 1
   name           = "${var.cluster_prefix}-master-${count.index}"
-  image          = local.new_image_id
+  image          = local.image_mapping_entry_found ? local.new_image_id : data.ibm_is_image.image[0].id
   profile        = data.ibm_is_instance_profile.master.name
   vpc            = data.ibm_is_vpc.vpc.id
   zone           = data.ibm_is_zone.zone.name
@@ -420,7 +427,7 @@ resource "ibm_is_instance" "master" {
 resource "ibm_is_instance" "master_candidate" {
   count          = var.management_node_count - 1
   name           = "${var.cluster_prefix}-master-candidate-${count.index}"
-  image          = local.new_image_id
+  image          = local.image_mapping_entry_found ? local.new_image_id : data.ibm_is_image.image[0].id
   profile        = data.ibm_is_instance_profile.master.name
   vpc            = data.ibm_is_vpc.vpc.id
   zone           = data.ibm_is_zone.zone.name
@@ -447,7 +454,7 @@ resource "ibm_is_instance" "master_candidate" {
 resource "ibm_is_instance" "worker" {
   count          = var.worker_node_min_count
   name           = "${var.cluster_prefix}-worker-${count.index}"
-  image          = local.new_image_id
+  image          = local.image_mapping_entry_found ? local.new_image_id : data.ibm_is_image.image[0].id
   profile        = data.ibm_is_instance_profile.worker.name
   vpc            = data.ibm_is_vpc.vpc.id
   zone           = data.ibm_is_zone.zone.name
