@@ -6,7 +6,7 @@
 - Support for Spectrum Scale storage nodes.
 
 ### **BUG FIXES**
-- Fixed bug related to Http data source body depreciation.
+- Fixed bug related to Http data source body deprecation.
 - Fixed bug related to Ansible version 2.10 upgrade.
 
 ### **CHANGES**
