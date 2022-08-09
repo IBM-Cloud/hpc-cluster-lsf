@@ -1,6 +1,5 @@
 locals {
         image_region_map = {
-
           "hpcc-lsf10-cent77-jul2221-v6" = {
             "us-south" = "r006-68478a2e-4abc-4bfb-9e4f-a6fb3b9b235f"
             "us-east" = "r014-4ccae2ea-b286-451b-9667-7e36d759aa5b"
@@ -47,6 +46,17 @@ locals {
             "eu-gb" = "r018-3a4561aa-a37e-43f4-b68d-e9575af66d94"
             "ca-tor" = "r038-d83b89eb-dbdf-444c-80a5-a8434ad202ab"
             "br-sao" = "r042-f9c46fad-0022-4ca9-b716-096748affab7"
+          }
+          "hpcc-lsf10-scale5131-rhel84-060822-v1" = {
+            "eu-de"   = "r010-12fc0cbb-a4c4-4fcc-a23a-f16aac05d4c9"
+            "us-east" = "r014-c234f6c7-1ee5-4e53-a41a-95d12d002267"
+            "us-south"= "r006-72c72135-e316-4859-bd04-59dfbfc49f7e"
+            "jp-tok"  = "r022-21a19e42-db68-4ab1-a2b3-b08a30e0cd0f"
+            "eu-gb"   = "r018-f79c488a-dddf-4a80-84db-c8e67707c5ab"
+            "jp-osa"  = "r034-3bccbe09-02f5-4ae8-ad60-5b127dfabb26"
+            "ca-tor"  = "r038-2fa9bef2-869e-41c8-ae67-18d2c4ed7f8f"
+            "au-syd"  = "r026-2af8be22-3994-42db-838c-e2be6eefb0fc"
+            "br-sao"  = "r042-4ba7845d-9ae7-4f4f-9c5b-dac25278bb10"
           }
         }
 }

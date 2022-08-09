@@ -26,6 +26,7 @@ securityGroupID=${security_group_id}
 sshkey_ID=${sshkey_id}
 regionName=${region_name}
 zoneName=${zone_name}
+temp_public_key="${temp_public_key}"
 
 #
 # Source LSF enviornment at the VM host
@@ -48,25 +49,25 @@ env >> $logfile
 echo $LS_Entitlement >> $LS_ENTITLEMENT_FILE
 echo $LSF_Entitlement >> $LSF_ENTITLEMENT_FILE
 
-#Update Master host name based on internal IP address
+#Update controller host name based on internal IP address
 privateIP=$(ip addr show eth0 | awk '$1 == "inet" {gsub(/\/.*$/, "", $2); print $2}')
-masterHostName=ibm-gen2host-${privateIP//./-}
+controllerHostName=ibm-gen2host-${privateIP//./-}
 networkIPrange=$(echo ${privateIP}|cut -f1-3 -d .)
-host_prefix=$(echo ${masterHostName}|cut -f1-5 -d -)
-hostnamectl set-hostname ${masterHostName}
+host_prefix=$(echo ${controllerHostName}|cut -f1-5 -d -)
+hostnamectl set-hostname ${controllerHostName}
 
 # NOTE: On ibm gen2, the default DNS server do not have reverse hostname/IP resolution.
-# 1) put the master server hostname and ip into lsf hosts.
+# 1) put the controller server hostname and ip into lsf hosts.
 # 2) put all possible VMs' hostname and ip into lsf hosts.
 for ((i=1; i<=254; i++))
 do
     echo "${networkIPrange}.${i}   ${host_prefix}-${i}" >> $LSF_HOSTS_FILE
 done
 
-#update the lsf master hostname
+#update the lsf controller hostname
 sed -i "s/lsfservers/servershosts/" $IBM_CLOUD_USER_DATA_FILE
-grep -rli 'lsfservers' ${LSF_CONF}/*|xargs sed -i "s/lsfservers/${masterHostName}/g"
-sed -i "s/ServerHostPlaceHolder/${masterHostName}/" $IBM_CLOUD_USER_DATA_FILE
+grep -rli 'lsfservers' ${LSF_CONF}/*|xargs sed -i "s/lsfservers/${controllerHostName}/g"
+sed -i "s/ServerHostPlaceHolder/${controllerHostName}/" $IBM_CLOUD_USER_DATA_FILE
 sed -i "s/servershosts/lsfservers/" $IBM_CLOUD_USER_DATA_FILE
 
 #update IBM gen2 Credentials API keys

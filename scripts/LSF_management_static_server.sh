@@ -29,20 +29,23 @@ hostnamectl set-hostname ${ManagementHostName}
 networkIPrange=$(echo ${privateIP}|cut -f1-3 -d .)
 host_prefix=$(hostname|cut -f1-4 -d -)
 
-# Change the MTU setting
-for masterIP in $master_ips; do
-  if [ "$masterIP" != "$privateIP" ]; then
-      ip route add $masterIP dev eth0 mtu 9000
-      echo 'ip route add '$masterIP' dev eth0 mtu 9000' >> /etc/sysconfig/network-scripts/route-eth0
-  fi
-done
+# Change the MTU setting as this is required for setting mtu as 9000 for communication to happen between clusters
+ip route replace $rc_cidr_block  dev eth0 proto kernel scope link src $privateIP mtu 9000
+echo 'ip route replace '$rc_cidr_block' dev eth0 proto kernel scope link src '$privateIP' mtu 9000' >> /etc/sysconfig/network-scripts/route-eth0
+
+#for controllerIP in $controller_ips; do
+  #if [ "$controllerIP" != "$privateIP" ]; then
+      #ip route add $controllerIP dev eth0 mtu 9000
+      #echo 'ip route add '$controllerIP' dev eth0 mtu 9000' >> /etc/sysconfig/network-scripts/route-eth0
+  #fi
+#done
 
 # NOTE: On ibm gen2, the default DNS server do not have reverse hostname/IP resolution.
-# 1) put the master server hostname and ip into lsf hosts.
+# 1) put the controller server hostname and ip into lsf hosts.
 # 2) put all possible VMs' hostname and ip into lsf hosts.
 python3 -c "import ipaddress; print('\n'.join([str(ip) + ' ${vmPrefix}-' + str(ip).replace('.', '-') for ip in ipaddress.IPv4Network('${rc_cidr_block}')]))" >> /etc/hosts
 
-#Update Master host name based on with nfs share or not
+#Update controller host name based on with nfs share or not
 if ([ -n "${nfs_server}" ] && [ -n "${nfs_mount_dir}" ]); then
   echo "NFS server and share found, start mount nfs share!" >> $logfile
   #Mount the nfs share
@@ -58,8 +61,12 @@ if ([ -n "${nfs_server}" ] && [ -n "${nfs_mount_dir}" ]); then
   # Generate and copy a public ssh key
   mkdir -p /mnt/$nfs_mount_dir/ssh /home/lsfadmin/.ssh
   ssh-keygen -q -t rsa -f /root/.ssh/id_rsa -C "lsfadmin@${ManagementHostName}" -N "" -q
-  cat /root/.ssh/id_rsa.pub >> /mnt/$nfs_mount_dir/ssh/authorized_keys
-  mv /root/.ssh/id_rsa /home/lsfadmin/.ssh/
+  cat /root/.ssh/id_rsa.pub >> /root/.ssh/authorized_keys
+  echo "StrictHostKeyChecking no" >> /root/.ssh/config
+  cat /root/.ssh/authorized_keys >> /mnt/$nfs_mount_dir/ssh/authorized_keys
+  cp /root/.ssh/id_rsa /mnt/$nfs_mount_dir/ssh/id_rsa
+  cp /root/.ssh/id_rsa /home/lsfadmin/.ssh/
+  echo "${temp_public_key}" >> /root/.ssh/authorized_keys
 else
   echo "No NFS server and share found!" >> $logfile
 fi
@@ -106,21 +113,21 @@ then
    done
 fi
 
-#update the lsf master hostname
+#update the lsf controller hostname
 grep -rli 'lsfservers' $LSF_CONF/*|xargs sed -i "s/lsfservers/${ManagementHostName}/g"
 
 #Add management candidate host into lsf cluster
-ManagementHostNames=`echo "${master_ips//./-}" | sed -e "s/^/${vmPrefix}-/g" | sed -e "s/ / ${vmPrefix}-/g"`
-sed -i "s/LSF_MASTER_LIST=.*/LSF_MASTER_LIST=\"${ManagementHostNames}\"/g" $LSF_CONF_FILE
-sed -i "s/EGO_MASTER_LIST=.*/EGO_MASTER_LIST=\"${ManagementHostNames}\"/g" $LSF_EGO_CONF_FILE
+ManagementHostNames=`echo "${controller_ips//./-}" | sed -e "s/^/${vmPrefix}-/g" | sed -e "s/ / ${vmPrefix}-/g"`
+sed -i "s/LSF_CONTROLLER_LIST=.*/LSF_CONTROLLER_LIST=\"${ManagementHostNames}\"/g" $LSF_CONF_FILE
+sed -i "s/EGO_CONTROLLER_LIST=.*/EGO_CONTROLLER_LIST=\"${ManagementHostNames}\"/g" $LSF_EGO_CONF_FILE
 for ManagementCandidateHostName in ${ManagementHostNames}; do
   if [ "${ManagementCandidateHostName}" != "${ManagementHostName}" ]; then
     sed -i "/^$ManagementHostName.*/a ${ManagementCandidateHostName} ! ! 1 (mg)" $LSF_CLUSTER_FILE
     sed -i "/^#hostE.*/a ${ManagementCandidateHostName} 0 () () () () () (Y)" $LSB_HOSTS_FILE
   fi
 done
-sed -i "s/master_hosts.*/master_hosts (${ManagementHostNames} )/g" $LSB_HOSTS_FILE
-# TODO: ebrokerd runs only on the primary master. Can we create/delete dynamic workers after failover?
+sed -i "s/controller_hosts.*/controller_hosts (${ManagementHostNames} )/g" $LSB_HOSTS_FILE
+# TODO: ebrokerd runs only on the primary controller. Can we create/delete dynamic workers after failover?
 # https://www.ibm.com/docs/en/spectrum-lsf/10.1.0?topic=connnector-lsf-resource-connector-overview
 #sed -i "s/LSF_MQ_BROKER_HOSTS=.*/LSF_MQ_BROKER_HOSTS=\"${ManagementHostNames}\"/g" $LSF_CONF_FILE
 #sed -i "s/LSF_DATA_HOSTS=.*/LSF_DATA_HOSTS=\"${ManagementHostNames}\"/g" $LSF_CONF_FILE
@@ -153,6 +160,11 @@ sed -i "s/template1-vmType/${rc_profile}/" $IBM_CLOUD_TEMPLATE_FILE
 sed -i "s/template1_maxNum/${rc_maxNum}/" $IBM_CLOUD_TEMPLATE_FILE
 sed -i "s/rgId-value/${rc_rg}/" $IBM_CLOUD_TEMPLATE_FILE
 sed -i "s/icgen2host/${vmPrefix}/" $IBM_CLOUD_CONF_FILE
+cat >> $IBM_CLOUD_USER_DATA_FILE << EOF
+privateIP=\$(ip addr show eth0 | awk '\$1 == "inet" {gsub(/\/.*$/, "", \$2); print \$2}')
+ip route replace $rc_cidr_block  dev eth0 proto kernel scope link src \$privateIP mtu 9000
+ip route replace $rc_cidr_block dev eth0 proto kernel scope link src '\$privateIP' mtu 9000' >> /etc/sysconfig/network-scripts/route-eth0
+EOF
 
 if $hyperthreading; then
   echo "EGO_DEFINE_NCPUS=threads" >> $LSF_CONF_FILE
@@ -171,12 +183,10 @@ mkdir -p /mnt/$nfs_mount_dir
 mount -t nfs $nfs_server:/$nfs_mount_dir /mnt/$nfs_mount_dir
 echo "$nfs_server:/$nfs_mount_dir /mnt/$nfs_mount_dir nfs rw,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,_netdev 0 0 " >> /etc/fstab
 ln -s /mnt/$nfs_mount_dir /home/lsfadmin/shared
-# Allow ssh from master
+# Allow ssh from controller
 sed -i "s#^\(AuthorizedKeysFile.*\)#\1 /mnt/$nfs_mount_dir/ssh/authorized_keys#g" /etc/ssh/sshd_config
 systemctl restart sshd
 #echo "LSF_MQ_BROKER_HOSTS=\"${ManagementHostNames}\"" >> /opt/ibm/lsf_worker/conf/lsf.conf
-# Due To Polkit Local Privilege Escalation Vulnerability
-chmod 0755 /usr/bin/pkexec
 EOF
 
 if $hyperthreading; then
@@ -221,6 +231,8 @@ cat /root/.ssh/authorized_keys >> /home/lsfadmin/.ssh/authorized_keys
 chmod 600 /home/lsfadmin/.ssh/authorized_keys
 chmod 700 /home/lsfadmin/.ssh
 chown -R lsfadmin:lsfadmin /home/lsfadmin/.ssh
+echo "StrictHostKeyChecking no" >> /home/lsfadmin/.ssh/config
+sudo chage -I -1 -m 0 -M 99999 -E -1 -W 14 lsfadmin
 cat << EOF > /etc/profile.d/lsf.sh
 ls /opt/ibm/lsf/conf/lsf.conf > /dev/null 2> /dev/null < /dev/null &
 usleep 10000
@@ -239,6 +251,7 @@ for path in /usr/local/bin /usr/bin /usr/local/sbin /usr/sbin; do
 done
 export PATH=/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:\`echo "\$PATHs" | paste -s -d :\`
 EOF
+
 # TODO: disallow root login
 
 cat $LSF_HOSTS_FILE >> $logfile
@@ -255,8 +268,4 @@ sleep 5
 lsf_daemons start &
 sleep 5
 lsf_daemons status >> $logfile
-
-# Due To Polkit Local Privilege Escalation Vulnerability
-chmod 0755 /usr/bin/pkexec
-
 echo END `date '+%Y-%m-%d %H:%M:%S'` >> $logfile
