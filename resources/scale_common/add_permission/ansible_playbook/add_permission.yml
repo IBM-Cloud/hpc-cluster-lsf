@@ -1,0 +1,6 @@
+---
+- hosts: add_permission
+
+  tasks:
+    - name: Add lsfadmin allow rights
+      shell: chown {{ user_name }} {{ mount_point }}

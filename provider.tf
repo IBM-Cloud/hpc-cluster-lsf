@@ -8,7 +8,11 @@ terraform {
   required_providers {
     ibm = {
       source  = "IBM-Cloud/ibm"
-      version = "1.30.0"
+      version = "1.41.0"
+    }
+    http = {
+      source = "hashicorp/http"
+      version = "3.0.1"
     }
   }
 }
@@ -16,5 +20,5 @@ terraform {
 # Or we can switch the region via export IC_REGION="eu-gb"
 provider "ibm" {
   ibmcloud_api_key = var.api_key
-  region           = var.region
+  region           = local.region_name
 }

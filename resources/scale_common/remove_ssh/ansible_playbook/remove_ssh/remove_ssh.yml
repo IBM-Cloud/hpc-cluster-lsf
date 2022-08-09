@@ -1,0 +1,9 @@
+---
+- hosts: ssh_remove
+
+  tasks:
+    - name: Ansible lineinfile remove line example
+      lineinfile:
+        dest: /root/.ssh/authorized_keys
+        line: "{{ ssh }}"
+        state: absent

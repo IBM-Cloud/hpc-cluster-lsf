@@ -1,7 +1,7 @@
 {
   "name": "Sample Schematic CLI workspace",
   "type": [
-    "terraform_v0.14.11"
+    "terraform_v1.1"
   ],
   "location": "us-east",
   "description": "HPC Cluster schematic workspace using CLI",
@@ -13,13 +13,16 @@
   "template_data": [
     {
       "folder": ".",
-      "type": "terraform_v0.14.11",
+      "type": "terraform_v1.1",
       "env_values":[
         {
           "TF_CLI_ARGS_apply": "-parallelism=250"
         },
         {
           "TF_CLI_ARGS_plan": "-parallelism=250"
+        },
+        {
+          "TF_CLI_ARGS_destroy": "-parallelism=250"
         },
         {
           "VAR1":"<val1>"
@@ -33,34 +36,34 @@
           "name": "ssh_key_name",
           "value": "",
           "type": "string",
-          "description": "Name of ssh key configured in your IBM Cloud account, that will be used to establish a connection to LSF master node. If you do not have a ssh key in your IBM Cloud please create one using instructions given here. [Learn more](https://cloud.ibm.com/docs/vpc?topic=vpc-ssh-keys)"
+          "description": "Comma-separated list of names of the SSH key configured in your IBM Cloud account that is used to establish a connection to the LSF management node. Ensure that the SSH key is present in the same resource group and region where the cluster is being provisioned. If you do not have an SSH key in your IBM Cloud account, create one by using the instructions given at [SSH Keys](https://cloud.ibm.com/docs/vpc?topic=vpc-ssh-keys)."
         },
         {
           "name": "api_key",
           "value": "",
           "type": "string",
           "secure": true,
-          "description": "This is the API key for IBM Cloud for IBM Cloud account in which the Spectrum LSF cluster needs to be deployed. [Learn more](https://cloud.ibm.com/docs/account?topic=account-userapikey)"
+          "description": "This is the IBM Cloud API key for the IBM Cloud account where the IBM Spectrum LSF cluster needs to be deployed. For more information on how to create an API key, see [Managing user API keys](https://cloud.ibm.com/docs/account?topic=account-userapikey&interface=ui)."
         },
         {
           "name": "lsf_license_confirmation",
           "value": "",
           "type": "string",
           "secure": false,
-          "description": "If you have confirmed the availability of a Spectrum LSF license for a production cluster on IBM Cloud OR if you are deploying a non-production cluster, enter 'true'. NOTE: Failure to comply with licenses for production use of software is a violation of IBM International Program License Agreement. [Learn more](https://www.ibm.com/software/passportadvantage/programlicense.html)"
+          "description": "If you have confirmed the availability of the Spectrum LSF license for a production cluster on IBM Cloud or if you are deploying a non-production cluster, enter true. Note:Failure to comply with licenses for production use of software is a violation of the[IBM International Program License Agreement](https://www.ibm.com/software/passportadvantage/programlicense.html)."
         },
         {
           "name": "vpc_name",
           "value": "",
           "type": "string",
-          "description": "Name of the existing VPC which can be part of the cluster. If no value given then, a new VPC will be provisioned as part of the cluster. [Learn more](https://cloud.ibm.com/docs/vpc)"
+          "description": "Name of the existing VPC which the cluster resources are deployed. If no value is given, then a new VPC is provisioned for the cluster.[Learn more](https://cloud.ibm.com/docs/vpc)."
         },
         {
           "name": "ls_entitlement",
           "value": "LS_Standard  10.1  ()  ()  ()  ()  18b1928f13939bd17bf25e09a2dd8459f238028f",
           "type": "string",
           "secure": true,
-          "description": "LSF license scheduler file content"
+          "description": "Entitlement file content for Spectrum LSF license scheduler."
         },
         {
           "name": "lsf_entitlement",
@@ -74,98 +77,91 @@
           "value": "Default",
           "type": "string",
           "secure": false,
-          "description": "This is the API key for IBM Cloud for IBM Cloud account in which the Spectrum LSF cluster needs to be deployed. [Learn more](https://cloud.ibm.com/docs/account?topic=account-userapikey)"
+          "description": "Resource group name from your IBM Cloud account where the VPC resources should be deployed. For additional information on resource groups, see [Managing resource groups](https://test.cloud.ibm.com/docs/account?topic=account-rgs&interface=ui)."
         },
         {
           "name": "cluster_prefix",
           "value": "hpcc-lsf",
           "type": "string",
           "secure": false,
-          "description": "Prefix that would be used to name Spectrum LSF cluster and IBM Cloud resources provisioned to build the Spectrum LSF cluster instance. You cannot create more than one instance of LSF Cluster with same name, please make sure the name is unique."
-        },
-        {
-          "name": "region",
-          "value": "us-south",
-          "type": "string",
-          "secure": false,
-          "description": "IBM Cloud region name where the Spectrum LSF cluster should be deployed. [Learn more](https://cloud.ibm.com/docs/vpc?topic=vpc-creating-a-vpc-in-a-different-region)"
+          "description": "Prefix that is used to name the IBM spectrum LSF cluster and IBM Cloud resources that are provisioned to build the IBM spectrum LSF cluster instance. You cannot create more than one instance of the LSF cluster with the same name. Make sure that the name is unique."
         },
         {
           "name": "zone",
           "value": "us-south-3",
           "type": "string",
           "secure": false,
-          "description": "IBM Cloud zone name within the selected region where the Spectrum LSF cluster should be deployed. [Learn more](https://cloud.ibm.com/docs/vpc?topic=vpc-creating-a-vpc-in-a-different-region#get-zones-using-the-cli)"
+          "description": "IBM Cloud zone name within the selected region where the Spectrum LSF cluster should be deployed. To get a full list of zones within a region, see [Get zones by using the CLI](https://test.cloud.ibm.com/docs/vpc?topic=vpc-creating-a-vpc-in-a-different-region&interface=cli#get-zones-using-the-cli)."
         },
         {
           "name": "image_name",
-          "value": "hpcc-lsf10-cent77-jul2221-v6",
+          "value": "hpcc-lsf10-scale5131-rhel84-060822-v1",
           "type": "string",
           "secure": false,
-          "description": "Name of the custom image that you would like to use to create virtual machines in your IBM Cloud account to deploy Spectrum LSF Cluster. By default, our automation uses a base image with following HPC related packages documented here [Learn more](https://cloud.ibm.com/docs/ibm-spectrum-lsf). If you would like to include your application specific binaries please follow the instructions [Learn more](https://cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the Spectrum LSF cluster through this offering."
+          "description": "Name of the custom image that you want to use to create virtual server instances in your IBM Cloud account to deploy the IBM Spectrum LSF cluster. By default, the automation uses a base image with e with additional software packages documented [here](https://cloud.ibm.com/docs/ibm-spectrum-lsf). If you would like to include your application-specific binary files, follow the instructions in [Planning for custom images](https://cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the IBM Spectrum LSF cluster through this offering."
         },
         {
           "name": "management_node_instance_type",
           "value": "bx2-4x16",
           "type": "string",
           "secure": false,
-          "description": "Please specify the VSI profile type name to be used to create the management nodes for Spectrum LSF cluster. [Learn more](https://cloud.ibm.com/docs/vpc?topic=vpc-profiles)"
+          "description": "Specify the virtual server instance profile type to be used to create the management nodes for the Spectrum LSF cluster. For choices on profile types, see [Instance profiles](https://cloud.ibm.com/docs/vpc?topic=vpc-profiles)."
         },
         {
           "name": "worker_node_instance_type",
           "value": "bx2-4x16",
           "type": "string",
           "secure": false,
-          "description": "Please specify the VSI profile type name to be used to create the worker nodes for Spectrum LSF cluster. The worker nodes are the ones where the workload execution takes place and choice should be made according to the characteristic of workloads. [Learn more](https://cloud.ibm.com/docs/vpc?topic=vpc-profiles)"
+          "description": "Specify the virtual server instance profile type name to be used to create the worker nodes for the Spectrum LSF cluster. The worker nodes are the ones where the workload execution takes place and the choice should be made according to the characteristic of workloads. For choices on profile types, see [Instance Profiles](https://cloud.ibm.com/docs/vpc?topic=vpc-profiles&interface=ui). Note: If dedicated_host_enabled == true, available instance prefix (e.g., bx2 and cx2) can be limited depending on your target region. Check `ibmcloud target -r {region_name}; ibmcloud is dedicated-host-profiles."
         },
         {
           "name": "login_node_instance_type",
           "value": "bx2-2x8",
           "type": "string",
           "secure": false,
-          "description": "Please specify the VSI profile type name to be used to create the login node for Spectrum LSF cluster. [Learn more](https://cloud.ibm.com/docs/vpc?topic=vpc-profiles)"
+          "description": "Specify the VSI profile type name to be used to create the login node for Spectrum LSF cluster. [Learn more](https://cloud.ibm.com/docs/vpc?topic=vpc-profiles&interface=ui)."
         },
         {
           "name": "storage_node_instance_type",
           "value": "bx2-2x8",
           "type": "string",
           "secure": false,
-          "description": "Please specify the VSI profile type name to be used to create the storage nodes for Spectrum LSF cluster. The storage nodes are the ones that would be used to create an NFS instance to manage the data for HPC workloads. [Learn more](https://cloud.ibm.com/docs/vpc?topic=vpc-profiles)"
+          "description": "Specify the virtual server instance profile type to be used to create the storage nodes for the Spectrum LSF cluster. The storage nodes are the ones that are used to create an NFS instance to manage the data for HPC workloads.  For choices on profile types, see [Instance profiles](https://cloud.ibm.com/docs/vpc?topic=vpc-profiles)."
         },
         {
           "name": "worker_node_min_count",
           "value": "0",
           "type": "number",
           "secure": false,
-          "description": "The minimum number of worker nodes. This is the number of worker nodes that will be provisioned at the time the cluster is created. Enter a value in the range 0 - 500."
+          "description": "The minimum number of worker nodes. This is the number of static worker nodes that will be provisioned at the time the cluster is created. If using NFS storage, enter a value in the range 0 - 500. If using Spectrum Scale storage, enter a value in the range 1 - 64. NOTE: Spectrum Scale requires a minimum of 3 compute nodes (combination of controller, controller-candidate, and worker nodes) to establish a [quorum](https://www.ibm.com/docs/en/spectrum-scale/5.1.2?topic=failure-quorum#nodequo) and maintain data consistency in the even of a node failure. Therefore, the minimum value of 1 may need to be larger if the value specified for management_node_count is less than 2."
         },
         {
           "name": "worker_node_max_count",
           "value": "10",
           "type": "number",
           "secure": false,
-          "description": "The maximum number of worker nodes that should be added to Spectrum LSF cluster. This is to limit the number of machines that can be added to Spectrum LSF cluster when auto-scaling configuration is used. This property can be used to manage the cost associated with Spectrum LSF cluster instance. Enter a value in the range 1 - 500."
+          "description": "The maximum number of worker nodes that can be deployed in the Spectrum LSF cluster. In order to use the [Resource Connector](https://www.ibm.com/docs/en/spectrum-lsf/10.1.0?topic=lsf-resource-connnector) feature to dynamically create and delete worker nodes based on workload demand, the value selected for this parameter must be larger than worker_node_min_count. If you plan to deploy only static worker nodes in the LSF cluster, e.g., when using Spectrum Scale storage, the value for this parameter should be equal to worker_node_min_count. Enter a value in the range 1 - 500."
         },
         {
           "name": "volume_capacity",
           "value": "100",
           "type": "number",
           "secure": false,
-          "description": "Size in GB for the block storage that would be used to build the NFS instance and would be available as a mount on Spectrum LSF master node. Enter a value in the range 10 - 16000."
+          "description": "Size in GB for the block storage that would be used to build the NFS instance and would be available as a mount on Spectrum LSF controller node. Enter a value in the range 10 - 16000."
         },
         {
           "name": "volume_iops",
           "value": "300",
           "type": "number",
           "secure": false,
-          "description": "IOPS setting for block storage (valid only for volume_profile=custom, dependent on volume_capacity). Enter a value in the range 100 - 48000. [Learn more](https://cloud.ibm.com/docs/vpc?topic=vpc-block-storage-profiles#custom)"
+          "description": "Number to represent the IOPS (Input Output Per Second) configuration for block storage to be used for the NFS instance (valid only for ‘volume_profile=custom’, dependent on ‘volume_capacity’). Enter a value in the range 100 - 48000.  For possible options of IOPS, see [Custom IOPS Profile](https://cloud.ibm.com/docs/vpc?topic=vpc-block-storage-profiles&interface=ui#custom)."
         },
         {
           "name": "management_node_count",
           "value": "2",
           "type": "number",
           "secure": false,
-          "description": "Number of management nodes. This is the total number of master and master candidates. Enter a value in the range 1 - 3"
+          "description": "Number of management nodes. This is the total number of management and management candidates. Enter a value in the range 1 - 3"
         },
         {
           "name": "ssh_allowed_ips",
@@ -179,21 +175,33 @@
           "value": "general-purpose",
           "type": "string",
           "secure": false,
-          "description": "Name of the block storage volume type to be used for NFS instance. [Learn more](https://cloud.ibm.com/docs/vpc?topic=vpc-block-storage-profiles)"
+          "description": "Name of the block storage volume type to be used for NFS instance. For possible options, see [Block storage profiles](https://cloud.ibm.com/docs/vpc?topic=vpc-block-storage-profiles&interface=ui)."
         },
         {
           "name": "hyperthreading_enabled",
           "value": "true",
           "type": "bool",
           "secure": false,
-          "description":"Setting this to true will enable hyper-threading in the worker nodes of the cluster (default). Otherwise, hyper-threading will be disabled."
+          "description": "Setting this to true will enable hyper-threading in the worker nodes of the cluster (default). Otherwise, hyper-threading will be disabled. Note: Only a value of true is supported for this release. See this [FAQ](https://test.cloud.ibm.com/docs/ibm-spectrum-lsf?topic=ibm-spectrum-lsf-spectrum-lsf-faqs&interface=ui#disable-hyper-threading) for an explanation of why that is the case."
+        },
+        {
+          "name": "dedicated_host_enabled",
+          "value": "false",
+          "type": "bool",
+          "description": "Set to true to use dedicated hosts for compute hosts (default: false). Note that lsf still dynamically provisions compute hosts at public VSIs and dedicated hosts are used only for static compute hosts provisioned at the time the cluster is created. The number of dedicated hosts and the profile names for dedicated hosts are calculated from worker_node_min_count and dedicated_host_type_name."
+        },
+        {
+          "name": "dedicated_host_placement",
+          "value": "spread",
+          "type": "string",
+          "description": "Specify 'pack' or 'spread'. The 'pack' option will deploy VSIs on one dedicated host until full before moving on to the next dedicated host. The 'spread' option will deploy VSIs in round-robin fashion across all the dedicated hosts. The second option should result in mostly even distribution of VSIs on the hosts, while the first option could result in one dedicated host being mostly empty."
         },
         {
           "name": "vpn_enabled",
           "value": "false",
           "type": "bool",
           "secure": false,
-          "description": "Set to true to deploy a VPN gateway for VPC in the cluster (default: false)."
+          "description": "Set the value as true to deploy a VPN gateway for VPC in the cluster."
         },
         {
           "name": "vpn_preshared_key",
@@ -221,7 +229,90 @@
           "value": "0.14",
           "type": "string",
           "secure": false,
-          "description":"The version of the Terraform engine that's used in the Schematics workspace."
+          "description": "The version of the Terraform engine that's used in the Schematics workspace."
+        },
+        {
+          "name": "spectrum_scale_enabled",
+          "value": "false",
+          "type": "bool",
+          "secure": false,
+          "description": "Setting this to true will enables Spectrum Scale integration with the cluster. Otherwise, Spectrum Scale integration will be disabled (default). By entering 'true' for the property, you have also agreed to one of the two conditions: (1) You are using the software in production and confirm you have sufficient licenses to cover your use under the International Program License Agreement (IPLA). (2) You are evaluating the software and agree to abide by the International License Agreement for Evaluation of Programs (ILAE). Note: Failure to comply with licenses for production use of software is a violation of [IBM International Program License Agreement](https://www.ibm.com/software/passportadvantage/programlicense.html)."
+        },
+        {
+          "name": "scale_storage_image_name",
+          "value": "hpcc-scale5131-rhel84-jun0122-v1",
+          "type": "string",
+          "secure": false,
+          "description": "Name of the custom image that you would like to use to create virtual machines in your IBM Cloud account to deploy the Spectrum Scale storage cluster. By default, the automation uses a base image plus the Spectrum Scale software and any other software packages that it requires. If you would like, you can follow the instructions for [Planning for custom images](https://test.cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the Spectrum Scale storage cluster through this offering."
+        },
+        {
+          "name": "scale_storage_node_count",
+          "value": "4",
+          "type": "number",
+          "secure": false,
+          "description": "The number of scale storage nodes that will be provisioned at the time the cluster is created. Enter a value in the range 2 - 18. It must to be divisible of 2."
+        },
+        {
+          "name": "scale_storage_node_instance_type",
+          "value": "cx2d-8x16",
+          "type": "string",
+          "secure": false,
+          "description": "Specify the virtual server instance storage profile type name to be used to create the Spectrum Scale storage nodes for the Spectrum Storage cluster. For more information, see [Instance profiles](https://cloud.ibm.com/docs/vpc?topic=vpc-profiles&interface=ui)."
+        },
+        {
+          "name": "scale_storage_cluster_filesystem_mountpoint",
+          "value": "/gpfs/fs1",
+          "type": "string",
+          "secure": false,
+          "description": "Spectrum Scale Storage cluster (owningCluster) Filesystem mount point. The owningCluster is the cluster that owns and serves the file system to be mounted. [Mounting a remote GPFS file system](https://www.ibm.com/docs/en/spectrum-scale/5.1.2?topic=system-mounting-remote-gpfs-file)."
+        },
+        {
+          "name": "scale_filesystem_block_size",
+          "value": "4M",
+          "type": "string",
+          "secure": false,
+          "description": "File system [block size](https://www.ibm.com/docs/en/spectrum-scale/5.1.2?topic=considerations-block-size). Spectrum Scale supported block sizes (in bytes) include: 256K, 512K, 1M, 2M, 4M, 8M, 16M."
+        },
+        {
+          "name": "scale_storage_cluster_gui_username",
+          "value": "",
+          "type": "string",
+          "secure": true,
+          "description": "GUI user to perform system management and monitoring tasks on storage cluster. Note: Username should be at least 4 characters, any combination of lowercase and uppercase letters."
+        },
+        {
+          "name": "scale_storage_cluster_gui_password",
+          "value": "",
+          "type": "string",
+          "secure": true,
+          "description": "Password for Spectrum Scale storage cluster GUI. Note: Password should be at least 8 characters, must have one number, one lowercase letter, one uppercase letter, and at least one unique character. Password Should not contain username"
+        },
+        {
+          "name": "scale_compute_cluster_gui_username",
+          "value": "",
+          "type": "string",
+          "secure": true,
+          "description": "GUI user to perform system management and monitoring tasks on compute cluster. Note: Username should be at least 4 characters, any combination of lowercase and uppercase letters."
+        },
+        {
+          "name": "scale_compute_cluster_gui_password",
+          "value": "",
+          "type": "string",
+          "secure": true,
+          "description": "Password for Compute cluster GUI. Note: Password should be at least 8 characters, must have one number, one lowercase letter, and one uppercase letter, at least one unique character. Password Should not contain username."
+        },
+        {
+          "name": "scale_compute_cluster_filesystem_mountpoint",
+          "value": "/gpfs/fs1",
+          "type": "string",
+          "secure": false,
+          "description": "Compute cluster (accessingCluster) file system mount point. The accessingCluster is the cluster that accesses the owningCluster. For more information, see [Mounting a remote GPFS file system](https://www.ibm.com/docs/en/spectrum-scale/5.1.2?topic=system-mounting-remote-gpfs-file)."
+        },
+        {
+          "name": "TF_WAIT_DURATION",
+          "value": "180s",
+          "type": "string",
+          "description": "wait duration time set for the storage and worker node to complete the entire setup"
         }
       ]
     }

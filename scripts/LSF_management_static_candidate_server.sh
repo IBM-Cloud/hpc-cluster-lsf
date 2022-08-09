@@ -11,14 +11,14 @@ echo START `date '+%Y-%m-%d %H:%M:%S'` >> $logfile
 
 nfs_server=${storage_ips}
 nfs_mount_dir="data"
-master_ips=($master_ips)
-lsfmasterhost=${master_ips[0]}
+controller_ips=($controller_ips)
+lsfcontrollerhost=${controller_ips[0]}
 #cluster_name=""
-#lsfmasterhost=""
+#lsfcontrollerhost=""
 
 #default value for the host name prefix
 vmPrefix="icgen2host"
-lsfmasterhost=${vmPrefix}-${lsfmasterhost//./-}
+lsfcontrollerhost=${vmPrefix}-${lsfcontrollerhost//./-}
 
 if [ ! -z $cluster_name ]
 then
@@ -34,21 +34,25 @@ networkIPrange=$(echo ${privateIP}|cut -f1-3 -d .)
 hostnamectl set-hostname ${ManagementCandidateHostName}
 host_prefix=$(hostname|cut -f1-4 -d -)
 
-# Change the MTU setting
-for masterIP in $master_ips; do
-  if [ "$masterIP" != "$privateIP" ]; then
-      ip route add $masterIP dev eth0 mtu 9000
-      echo 'ip route add '$masterIP' dev eth0 mtu 9000' >> /etc/sysconfig/network-scripts/route-eth0
-  fi
-done
+
+# Change the MTU setting as this is required for setting mtu as 9000 for communication to happen between clusters
+ip route replace $rc_cidr_block  dev eth0 proto kernel scope link src $privateIP mtu 9000
+echo 'ip route replace '$rc_cidr_block' dev eth0 proto kernel scope link src '$privateIP' mtu 9000' >> /etc/sysconfig/network-scripts/route-eth0
+
+#for controllerIP in $controller_ips; do
+  #if [ "$controllerIP" != "$privateIP" ]; then
+      #ip route add $controllerIP dev eth0 mtu 9000
+      #echo 'ip route add '$controllerIP' dev eth0 mtu 9000' >> /etc/sysconfig/network-scripts/route-eth0
+  #fi
+#done
 
 
 # NOTE: On ibm gen2, the default DNS server do not have reverse hostname/IP resolution.
-# 1) put the master server hostname and ip into lsf hosts.
+# 1) put the controller server hostname and ip into lsf hosts.
 # 2) put all possible VMs' hostname and ip into lsf hosts.
 python3 -c "import ipaddress; print('\n'.join([str(ip) + ' ${vmPrefix}-' + str(ip).replace('.', '-') for ip in ipaddress.IPv4Network('${rc_cidr_block}')]))" >> /etc/hosts
 
-#Update Master host name based on with nfs share or not
+#Update Controller host name based on with nfs share or not
 if ([ -n "${nfs_server}" ] && [ -n "${nfs_mount_dir}" ]); then
   echo "NFS server and share found, start mount nfs share!" >> $logfile
   #Mount the nfs share
@@ -59,8 +63,8 @@ if ([ -n "${nfs_server}" ] && [ -n "${nfs_mount_dir}" ]); then
   #make auto mount when server is down
   echo "$nfs_server:/$nfs_mount_dir /mnt/${nfs_mount_dir} nfs rw,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,_netdev 0 0 " >> /etc/fstab
   echo "Mount nfs share done!" >> $logfile
-  while [ ! -d /mnt/$nfs_mount_dir/lsf_$lsfmasterhost ]; do sleep 1s; done
-  if [ -d /mnt/$nfs_mount_dir/lsf_$lsfmasterhost ]; then
+  while [ ! -d /mnt/$nfs_mount_dir/lsf_$lsfcontrollerhost ]; do sleep 1s; done
+  if [ -d /mnt/$nfs_mount_dir/lsf_$lsfcontrollerhost ]; then
     echo "lsf directory already exits in nfs share" >> $logfile
     for subdir in conf work log das_staging_area; do
       lsf_link=$(ls -la /opt/ibm/lsf/$subdir | grep "\->")
@@ -69,7 +73,7 @@ if ([ -n "${nfs_server}" ] && [ -n "${nfs_mount_dir}" ]); then
       else
         echo "link the conf to share location" >> $logfile
         mv /opt/ibm/lsf/${subdir} /opt/ibm/lsf/${subdir}_org
-        ln -fs /mnt/$nfs_mount_dir/lsf_$lsfmasterhost/$subdir /opt/ibm/lsf/$subdir
+        ln -fs /mnt/$nfs_mount_dir/lsf_$lsfcontrollerhost/$subdir /opt/ibm/lsf/$subdir
       fi
     done
   else
@@ -78,9 +82,13 @@ if ([ -n "${nfs_server}" ] && [ -n "${nfs_mount_dir}" ]); then
   fi  
   # Generate and copy a public ssh key
   mkdir -p /mnt/$nfs_mount_dir/ssh /home/lsfadmin/.ssh
-  ssh-keygen -q -t rsa -f /root/.ssh/id_rsa -C "lsfadmin@${ManagementCandidateHostName}" -N "" -q
-  cat /root/.ssh/id_rsa.pub >> /mnt/$nfs_mount_dir/ssh/authorized_keys
-  mv /root/.ssh/id_rsa /home/lsfadmin/.ssh/
+  # ssh-keygen -q -t rsa -f /root/.ssh/id_rsa -C "lsfadmin@${ManagementCandidateHostName}" -N "" -q
+  cp /mnt/$nfs_mount_dir/ssh/id_rsa /root/.ssh/id_rsa
+  echo "StrictHostKeyChecking no" >> /root/.ssh/config
+  cat /mnt/$nfs_mount_dir/ssh/authorized_keys >> /root/.ssh/authorized_keys
+  #  cat /root/.ssh/id_rsa.pub >> /mnt/$nfs_mount_dir/ssh/authorized_keys
+  cp /root/.ssh/id_rsa /home/lsfadmin/.ssh/
+  echo "${temp_public_key}" >> /root/.ssh/authorized_keys
 else
   echo "No NFS server and share found, can not add candidate server in nonshared lsf" >> $logfile 
   exit 1
@@ -118,6 +126,8 @@ cat /root/.ssh/authorized_keys >> /home/lsfadmin/.ssh/authorized_keys
 chmod 600 /home/lsfadmin/.ssh/authorized_keys
 chmod 700 /home/lsfadmin/.ssh
 chown -R lsfadmin:lsfadmin /home/lsfadmin/.ssh
+echo "StrictHostKeyChecking no" >> /home/lsfadmin/.ssh/config
+sudo chage -I -1 -m 0 -M 99999 -E -1 -W 14 lsfadmin
 cat << EOF > /etc/profile.d/lsf.sh
 ls /opt/ibm/lsf/conf/lsf.conf > /dev/null 2> /dev/null < /dev/null &
 usleep 10000
@@ -136,6 +146,7 @@ for path in /usr/local/bin /usr/bin /usr/local/sbin /usr/sbin; do
 done
 export PATH=/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:\`echo "\$PATHs" | paste -s -d :\`
 EOF
+
 # TODO: disallow root login
 
 #startup lsf daemons in the management candidate nodes
@@ -147,8 +158,4 @@ lsf_daemons start &
 sleep 5
 
 lsf_daemons status >> $logfile
-
-# Due To Polkit Local Privilege Escalation Vulnerability
-chmod 0755 /usr/bin/pkexec
-
 echo END `date '+%Y-%m-%d %H:%M:%S'` >> $logfile

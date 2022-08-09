@@ -38,7 +38,10 @@ rc_memInMB=${rc_memInMB}
 # the maximum allowed dynamic hosts created by RC
 rc_maxNum=${rc_maxNum}
 rc_rg=${rc_rg}
-master_ips="${master_ips}"
+controller_ips="${controller_ips}"
 storage_ips="${storage_ips}"
 cluster_name="HPCCluster"
 hyperthreading="${hyperthreading}"
+temp_public_key="${temp_public_key}"
+scale_mount_point = "${scale_mount_point}"
+spectrum_scale="${spectrum_scale}"
