@@ -132,7 +132,7 @@ ibm-gen2host-10-241-0-21  # worker hostname
 * Run the following command to access the storage cluster:
 
 ```buildoutcfg
-#ssh -L 22443:localhost:443 -J root@{STORAGE_NODE_IP_ADDRESS} root@{FLOATING_IP_ADDRESS}
+#ssh -L 22443:localhost:443 -J root@{FLOATING_IP_ADDRESS} root@{STORAGE_NODE_IP_ADDRESS}
 ```
 * where STORAGE_NODE_IP_ADDRESS needs to be replaced with the storage IP address associated with hpc-pc-scale-storage-0, which you gathered earlier, and FLOATING_IP_ADDRESS needs to be replaced with the floating IP address that you identified.
 
@@ -144,7 +144,7 @@ Accessing the compute cluster
 * Run the following command to access the compute cluster:
 
 ```buildoutcfg
- #ssh -L 21443:localhost:443 -J root@{COMPUTE_NODE_IP_ADDRESS} root@{FLOATING_IP_ADDRESS}
+ #ssh -L 21443:localhost:443 -J root@{FLOATING_IP_ADDRESS} root@{COMPUTE_NODE_IP_ADDRESS}
  ```
 * where COMPUTE_NODE_IP_ADDRESS needs to be replaced with the storage IP address associated with hpc-pc-primary-0, which you gathered earlier, and FLOATING_IP_ADDRESS needs to be replaced with the floating IP address that you identified.
 

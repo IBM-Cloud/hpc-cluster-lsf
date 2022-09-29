@@ -1,5 +1,17 @@
 locals {
         image_region_map = {
+          "hpcc-lsf10-scale5131-rhel84-092122-v2" = {
+            "us-south" = "r006-a9171617-6e03-4c7f-ba77-ddc7cb5f980d"
+            "us-east" = "r014-4e55b970-5ce2-44ab-b9ff-49b82e7498d5"
+            "au-syd" = "r026-b62ba927-57b1-4f55-8c9d-47700de6653c"
+            "jp-osa" = "r034-abacd0e2-4a03-4c58-a2f2-417acc4bd739"
+            "jp-tok" = "r022-27bf7b3f-b23b-44d3-bf98-ebcc8b04ca9a"
+            "eu-de" = "r010-2ffa7ece-191f-4cae-9758-4ad3e61d3506"
+            "eu-gb" = "r018-55e711aa-26d0-428e-8ffe-5c2709ecbe07"
+            "ca-tor" = "r038-5412aa01-d227-4395-8b18-7c2bac842960"
+            "br-sao" = "r042-d896bad2-c462-4ca4-94d7-a7a4dba6a5d3"
+          } 
+                
           "hpcc-lsf10-cent77-jul2221-v6" = {
             "us-south" = "r006-68478a2e-4abc-4bfb-9e4f-a6fb3b9b235f"
             "us-east" = "r014-4ccae2ea-b286-451b-9667-7e36d759aa5b"
