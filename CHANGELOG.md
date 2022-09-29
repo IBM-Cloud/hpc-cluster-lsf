@@ -1,5 +1,12 @@
 # **CHANGELOG**
 
+## **2.0.4**
+### ENHANCEMENTS
+- Support Intel oneAPI for LSF.
+
+### **CHANGES**
+- Updated the default image name having LSF and Intel OneAPI functionality.
+
 ## **2.0.3**
 ### ENHANCEMENTS
 - Support dedicated hosts for static worker nodes.

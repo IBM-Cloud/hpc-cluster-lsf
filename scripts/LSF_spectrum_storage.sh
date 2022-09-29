@@ -33,6 +33,9 @@ python3 -c "import ipaddress; print('\n'.join([str(ip) + ' ${vmPrefix}-' + str(i
 mkdir -p /mnt/$nfs_mount_dir
 echo "${nfs_server}:/$nfs_mount_dir /mnt/$nfs_mount_dir nfs rw,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,_netdev 0 0" >> /etc/fstab
 mount /mnt/$nfs_mount_dir
+# Workaround: Adding sleep till we get nfs data synced
+retry=0
+while [ ! -f /mnt/$nfs_mount_dir/ssh/id_rsa ]; do sleep 5; let retry++; echo Retry count: $retry. Waiting for nfs data to mount; if [[ ! -f /mnt/$nfs_mount_dir/ssh/id_rsa && $retry -gt 60 ]]; then echo Received mount status as failure; exit 1; fi; done
 ln -s /mnt/$nfs_mount_dir /root/shared
 
 # Change the MTU setting as this is required for setting mtu as 9000 for communication to happen between clusters
