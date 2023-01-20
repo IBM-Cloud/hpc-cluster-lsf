@@ -60,13 +60,20 @@ if ([ -n "${nfs_server}" ] && [ -n "${nfs_mount_dir}" ]); then
   rm -rf /mnt/$nfs_mount_dir/lsf_$ManagementHostName /mnt/$nfs_mount_dir/ssh
   # Generate and copy a public ssh key
   mkdir -p /mnt/$nfs_mount_dir/ssh /home/lsfadmin/.ssh
-  ssh-keygen -q -t rsa -f /root/.ssh/id_rsa -C "lsfadmin@${ManagementHostName}" -N "" -q
-  cat /root/.ssh/id_rsa.pub >> /root/.ssh/authorized_keys
+  #Create the sshkey in the share directory and then copy the public and private key to respective root and lsfadmin .ssh folder
+  ssh-keygen -q -t rsa -f /mnt/$nfs_mount_dir/ssh/id_rsa -C "lsfadmin@${ManagementHostName}" -N "" -q
+  cat /mnt/$nfs_mount_dir/ssh/id_rsa.pub >> /root/.ssh/authorized_keys
+  cp /root/.ssh/authorized_keys /mnt/$nfs_mount_dir/ssh/authorized_keys
+  cp /mnt/$nfs_mount_dir/ssh/id_rsa /root/.ssh/id_rsa
   echo "StrictHostKeyChecking no" >> /root/.ssh/config
-  cat /root/.ssh/authorized_keys >> /mnt/$nfs_mount_dir/ssh/authorized_keys
-  cp /root/.ssh/id_rsa /mnt/$nfs_mount_dir/ssh/id_rsa
-  cp /root/.ssh/id_rsa /home/lsfadmin/.ssh/
+  cp /mnt/$nfs_mount_dir/ssh/id_rsa /home/lsfadmin/.ssh/id_rsa
+  cp /mnt/$nfs_mount_dir/ssh/authorized_keys /home/lsfadmin/.ssh/authorized_keys
   echo "${temp_public_key}" >> /root/.ssh/authorized_keys
+  chmod 600 /home/lsfadmin/.ssh/authorized_keys
+  chmod 700 /home/lsfadmin/.ssh
+  chown -R lsfadmin:lsfadmin /home/lsfadmin/.ssh
+
+  echo "StrictHostKeyChecking no" >> /home/lsfadmin/.ssh/config
 else
   echo "No NFS server and share found!" >> $logfile
 fi
@@ -225,13 +232,7 @@ echo "moved lsf into nfs share location and link back done" >> $logfile
 
 ln -s /mnt/$nfs_mount_dir /home/lsfadmin/shared
 
-# Allow login as lsfadmin
-mkdir -p /home/lsfadmin/.ssh
-cat /root/.ssh/authorized_keys >> /home/lsfadmin/.ssh/authorized_keys
-chmod 600 /home/lsfadmin/.ssh/authorized_keys
-chmod 700 /home/lsfadmin/.ssh
-chown -R lsfadmin:lsfadmin /home/lsfadmin/.ssh
-echo "StrictHostKeyChecking no" >> /home/lsfadmin/.ssh/config
+#Updates the lsfadmin user as never expire
 sudo chage -I -1 -m 0 -M 99999 -E -1 -W 14 lsfadmin
 cat << EOF > /etc/profile.d/lsf.sh
 ls /opt/ibm/lsf/conf/lsf.conf > /dev/null 2> /dev/null < /dev/null &

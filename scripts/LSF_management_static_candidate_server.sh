@@ -82,13 +82,16 @@ if ([ -n "${nfs_server}" ] && [ -n "${nfs_mount_dir}" ]); then
   fi  
   # Generate and copy a public ssh key
   mkdir -p /mnt/$nfs_mount_dir/ssh /home/lsfadmin/.ssh
-  # ssh-keygen -q -t rsa -f /root/.ssh/id_rsa -C "lsfadmin@${ManagementCandidateHostName}" -N "" -q
   cp /mnt/$nfs_mount_dir/ssh/id_rsa /root/.ssh/id_rsa
   echo "StrictHostKeyChecking no" >> /root/.ssh/config
-  cat /mnt/$nfs_mount_dir/ssh/authorized_keys >> /root/.ssh/authorized_keys
-  #  cat /root/.ssh/id_rsa.pub >> /mnt/$nfs_mount_dir/ssh/authorized_keys
-  cp /root/.ssh/id_rsa /home/lsfadmin/.ssh/
+  cat /mnt/$nfs_mount_dir/ssh/id_rsa.pub >> /root/.ssh/authorized_keys
+  cp /mnt/$nfs_mount_dir/ssh/id_rsa /home/lsfadmin/.ssh/
+  cp /mnt/$nfs_mount_dir/ssh/authorized_keys /home/lsfadmin/.ssh/authorized_keys
   echo "${temp_public_key}" >> /root/.ssh/authorized_keys
+  chmod 600 /home/lsfadmin/.ssh/authorized_keys
+  chmod 700 /home/lsfadmin/.ssh
+  chown -R lsfadmin:lsfadmin /home/lsfadmin/.ssh
+  echo "StrictHostKeyChecking no" >> /home/lsfadmin/.ssh/config
 else
   echo "No NFS server and share found, can not add candidate server in nonshared lsf" >> $logfile 
   exit 1
@@ -120,13 +123,7 @@ sleep 5
 chown -R lsfadmin:lsfadmin /home/lsfadmin
 ln -s /mnt/$nfs_mount_dir /home/lsfadmin/shared
 
-# Allow login as lsfadmin
-mkdir -p /home/lsfadmin/.ssh
-cat /root/.ssh/authorized_keys >> /home/lsfadmin/.ssh/authorized_keys
-chmod 600 /home/lsfadmin/.ssh/authorized_keys
-chmod 700 /home/lsfadmin/.ssh
-chown -R lsfadmin:lsfadmin /home/lsfadmin/.ssh
-echo "StrictHostKeyChecking no" >> /home/lsfadmin/.ssh/config
+#Updates the lsfadmin user as never expire
 sudo chage -I -1 -m 0 -M 99999 -E -1 -W 14 lsfadmin
 cat << EOF > /etc/profile.d/lsf.sh
 ls /opt/ibm/lsf/conf/lsf.conf > /dev/null 2> /dev/null < /dev/null &

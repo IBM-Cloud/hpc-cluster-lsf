@@ -1,5 +1,9 @@
 # **CHANGELOG**
 
+## **2.0.5**
+### **CHANGES**
+- Refresh Spectrum LSF and Scale default images.
+
 ## **2.0.4**
 ### ENHANCEMENTS
 - Support Intel oneAPI for LSF.

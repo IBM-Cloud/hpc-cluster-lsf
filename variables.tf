@@ -80,7 +80,7 @@ variable "zone" {
 
 variable "image_name" {
   type        = string
-  default     = "hpcc-lsf10-scale5131-rhel84-092122-v2"
+  default     = "hpcc-lsf10-scale5131-rhel84-2-0-5"
   description = "Name of the custom image that you want to use to create virtual server instances in your IBM Cloud account to deploy the IBM Spectrum LSF cluster. By default, the automation uses a base image with e with additional software packages documented [here](https://cloud.ibm.com/docs/ibm-spectrum-lsf). If you would like to include your application-specific binary files, follow the instructions in [Planning for custom images](https://cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the IBM Spectrum LSF cluster through this offering."
 }
 
@@ -264,7 +264,7 @@ variable "spectrum_scale_enabled"{
 
 variable "scale_storage_image_name" {
   type        = string
-  default     = "hpcc-scale5131-rhel84-jun0122-v1"
+  default     = "hpcc-scale5131-rhel84"
   description = "Name of the custom image that you would like to use to create virtual machines in your IBM Cloud account to deploy the Spectrum Scale storage cluster. By default, the automation uses a base image plus the Spectrum Scale software and any other software packages that it requires. If you would like, you can follow the instructions for [Planning for custom images](https://test.cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the Spectrum Scale storage cluster through this offering."
 }
 

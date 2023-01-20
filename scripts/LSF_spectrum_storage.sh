@@ -43,9 +43,9 @@ ip route replace $rc_cidr_block  dev eth0 proto kernel scope link src $privateIP
 echo 'ip route replace '$rc_cidr_block' dev eth0 proto kernel scope link src '$privateIP' mtu 9000' >> /etc/sysconfig/network-scripts/route-eth0
 
 mkdir -p /root/.ssh
-cat /mnt/$nfs_mount_dir/ssh/authorized_keys >> /root/.ssh/authorized_keys
-echo "${temp_public_key}" >> /root/.ssh/authorized_keys
+cat /mnt/$nfs_mount_dir/ssh/id_rsa.pub >> /root/.ssh/authorized_keys
 cp /mnt/$nfs_mount_dir/ssh/id_rsa /root/.ssh/id_rsa
+echo "${temp_public_key}" >> /root/.ssh/authorized_keys
 echo "StrictHostKeyChecking no" >> /root/.ssh/config
 chmod 600 /root/.ssh/id_rsa
 chmod 600 /root/.ssh/authorized_keys

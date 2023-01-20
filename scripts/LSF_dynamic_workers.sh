@@ -67,13 +67,12 @@ mount /mnt/$nfs_mount_dir
 ln -s /mnt/$nfs_mount_dir /home/lsfadmin/shared
 
 cp /mnt/$nfs_mount_dir/ssh/id_rsa /root/.ssh/id_rsa
-cat /mnt/$nfs_mount_dir/ssh/authorized_keys >> /root/.ssh/authorized_keys
+cat /mnt/$nfs_mount_dir/ssh/id_rsa.pub >> /root/.ssh/authorized_keys
 
 # Allow login as lsfadmin
 mkdir -p /home/lsfadmin/.ssh
-cat /root/.ssh/authorized_keys >> /home/lsfadmin/.ssh/authorized_keys
-cat /mnt/$nfs_mount_dir/ssh/authorized_keys >> /home/lsfadmin/.ssh/authorized_keys
 cp /mnt/$nfs_mount_dir/ssh/id_rsa /home/lsfadmin/.ssh/id_rsa
+cp /mnt/$nfs_mount_dir/ssh/authorized_keys /home/lsfadmin/.ssh/authorized_keys
 echo "${temp_public_key}" >> /root/.ssh/authorized_keys
 echo "StrictHostKeyChecking no" >> /root/.ssh/config
 echo "StrictHostKeyChecking no" >> /home/lsfadmin/.ssh/config
