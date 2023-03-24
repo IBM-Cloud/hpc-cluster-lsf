@@ -38,7 +38,7 @@ resource "null_resource" "call_add_permission_mountpoint_playbook" {
       inventory_file = local.inventory_file_path
       verbose        = true
       extra_vars = {
-        "ansible_python_interpreter" : "/usr/bin/python3",
+        "ansible_python_interpreter" : "auto",
         "scale_cluster_definition_path" : local.inventory_file_path
         "mount_point": var.scale_mount_point
         "user_name": "lsfadmin"

@@ -46,31 +46,17 @@
           "description": "This is the IBM Cloud API key for the IBM Cloud account where the IBM Spectrum LSF cluster needs to be deployed. For more information on how to create an API key, see [Managing user API keys](https://cloud.ibm.com/docs/account?topic=account-userapikey&interface=ui)."
         },
         {
-          "name": "lsf_license_confirmation",
+          "name": "ibm_customer_number",
           "value": "",
           "type": "string",
-          "secure": false,
-          "description": "If you have confirmed the availability of the Spectrum LSF license for a production cluster on IBM Cloud or if you are deploying a non-production cluster, enter true. Note:Failure to comply with licenses for production use of software is a violation of the[IBM International Program License Agreement](https://www.ibm.com/software/passportadvantage/programlicense.html)."
+          "secure": true,
+          "description": "Comma-separated list of the IBM Customer Number(s) (ICN) that is used for the Bring Your Own License (BYOL) entitlement check. For more information on how to find your ICN, see [What is my IBM Customer Number (ICN)?](https://www.ibm.com/support/pages/what-my-ibm-customer-number-icn)."
         },
         {
           "name": "vpc_name",
           "value": "",
           "type": "string",
           "description": "Name of the existing VPC which the cluster resources are deployed. If no value is given, then a new VPC is provisioned for the cluster.[Learn more](https://cloud.ibm.com/docs/vpc)."
-        },
-        {
-          "name": "ls_entitlement",
-          "value": "LS_Standard  10.1  ()  ()  ()  ()  18b1928f13939bd17bf25e09a2dd8459f238028f",
-          "type": "string",
-          "secure": true,
-          "description": "Entitlement file content for Spectrum LSF license scheduler."
-        },
-        {
-          "name": "lsf_entitlement",
-          "value": "LSF_Standard  10.1  ()  ()  ()  pa  3f08e215230ffe4608213630cd5ef1d8c9b4dfea",
-          "type": "string",
-          "secure": true,
-          "description": "Entitlement file content for core Spectrum LSF software."
         },
         {
           "name": "resource_group",
@@ -95,10 +81,10 @@
         },
         {
           "name": "image_name",
-          "value": "hpcc-lsf10-scale5131-rhel84-2-0-5",
+          "value": "hpcc-lsf10-scale5151-rhel84-2-1",
           "type": "string",
           "secure": false,
-          "description": "Name of the custom image that you want to use to create virtual server instances in your IBM Cloud account to deploy the IBM Spectrum LSF cluster. By default, the automation uses a base image with e with additional software packages documented [here](https://cloud.ibm.com/docs/ibm-spectrum-lsf). If you would like to include your application-specific binary files, follow the instructions in [Planning for custom images](https://cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the IBM Spectrum LSF cluster through this offering."
+          "description": "Name of the custom image that you want to use to create virtual server instances in your IBM Cloud account to deploy the IBM Spectrum LSF cluster. By default, the automation uses a base image with additional software packages documented [here](https://cloud.ibm.com/docs/ibm-spectrum-lsf). If you would like to include your application-specific binary files, follow the instructions in [Planning for custom images](https://cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the IBM Spectrum LSF cluster through this offering."
         },
         {
           "name": "management_node_instance_type",
@@ -133,7 +119,7 @@
           "value": "0",
           "type": "number",
           "secure": false,
-          "description": "The minimum number of worker nodes. This is the number of static worker nodes that will be provisioned at the time the cluster is created. If using NFS storage, enter a value in the range 0 - 500. If using Spectrum Scale storage, enter a value in the range 1 - 64. NOTE: Spectrum Scale requires a minimum of 3 compute nodes (combination of controller, controller-candidate, and worker nodes) to establish a [quorum](https://www.ibm.com/docs/en/spectrum-scale/5.1.2?topic=failure-quorum#nodequo) and maintain data consistency in the even of a node failure. Therefore, the minimum value of 1 may need to be larger if the value specified for management_node_count is less than 2."
+          "description": "The minimum number of worker nodes. This is the number of static worker nodes that will be provisioned at the time the cluster is created. If using NFS storage, enter a value in the range 0 - 500. If using Spectrum Scale storage, enter a value in the range 1 - 64. NOTE: Spectrum Scale requires a minimum of 3 compute nodes (combination of management-host, management-host-candidate, and worker nodes) to establish a [quorum](https://www.ibm.com/docs/en/spectrum-scale/5.1.5?topic=failure-quorum#nodequo) and maintain data consistency in the event of a node failure. Therefore, the minimum value of 1 may need to be larger if the value specified for management_node_count is less than 2."
         },
         {
           "name": "worker_node_max_count",
@@ -147,7 +133,7 @@
           "value": "100",
           "type": "number",
           "secure": false,
-          "description": "Size in GB for the block storage that would be used to build the NFS instance and would be available as a mount on Spectrum LSF controller node. Enter a value in the range 10 - 16000."
+          "description": "Size in GB for the block storage that would be used to build the NFS instance and would be available as a mount on Spectrum LSF management_host node. Enter a value in the range 10 - 16000."
         },
         {
           "name": "volume_iops",
@@ -164,11 +150,11 @@
           "description": "Number of management nodes. This is the total number of management and management candidates. Enter a value in the range 1 - 3"
         },
         {
-          "name": "ssh_allowed_ips",
-          "value": "0.0.0.0/0",
-          "type": "string",
+          "name": "remote_allowed_ips",
+          "value": "[\"Please fill here\"]",
+          "type": "list(string)",
           "secure": false,
-          "description": "Comma separated list of IP addresses that can access the Spectrum LSF instance through SSH interface. The default value allows any IP address to access the cluster."
+          "description": "Comma-separated list of IP addresses that can access the Spectrum LSF instance through an SSH or RDP interface. For security purposes, provide the public IP addresses assigned to the devices that are authorized to establish SSH or RDP connections (for example, [\"169.45.117.34\"]). To fetch the IP address of the device, use [https://ipv4.icanhazip.com/](https://ipv4.icanhazip.com/)."
         },
         {
           "name": "volume_profile",
@@ -182,7 +168,7 @@
           "value": "true",
           "type": "bool",
           "secure": false,
-          "description": "Setting this to true will enable hyper-threading in the worker nodes of the cluster (default). Otherwise, hyper-threading will be disabled. Note: Only a value of true is supported for this release. See this [FAQ](https://test.cloud.ibm.com/docs/ibm-spectrum-lsf?topic=ibm-spectrum-lsf-spectrum-lsf-faqs&interface=ui#disable-hyper-threading) for an explanation of why that is the case."
+          "description": "Setting this to true will enable hyper-threading in the worker nodes of the cluster (default). Otherwise, hyper-threading will be disabled."
         },
         {
           "name": "dedicated_host_enabled",
@@ -240,7 +226,7 @@
         },
         {
           "name": "scale_storage_image_name",
-          "value": "hpcc-scale5131-rhel84",
+          "value": "hpcc-scale5151-rhel84",
           "type": "string",
           "secure": false,
           "description": "Name of the custom image that you would like to use to create virtual machines in your IBM Cloud account to deploy the Spectrum Scale storage cluster. By default, the automation uses a base image plus the Spectrum Scale software and any other software packages that it requires. If you would like, you can follow the instructions for [Planning for custom images](https://test.cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the Spectrum Scale storage cluster through this offering."
@@ -264,14 +250,14 @@
           "value": "/gpfs/fs1",
           "type": "string",
           "secure": false,
-          "description": "Spectrum Scale Storage cluster (owningCluster) Filesystem mount point. The owningCluster is the cluster that owns and serves the file system to be mounted. [Mounting a remote GPFS file system](https://www.ibm.com/docs/en/spectrum-scale/5.1.2?topic=system-mounting-remote-gpfs-file)."
+          "description": "Spectrum Scale Storage cluster (owningCluster) Filesystem mount point. The owningCluster is the cluster that owns and serves the file system to be mounted. [Mounting a remote GPFS file system](https://www.ibm.com/docs/en/spectrum-scale/5.1.5?topic=system-mounting-remote-gpfs-file)."
         },
         {
           "name": "scale_filesystem_block_size",
           "value": "4M",
           "type": "string",
           "secure": false,
-          "description": "File system [block size](https://www.ibm.com/docs/en/spectrum-scale/5.1.2?topic=considerations-block-size). Spectrum Scale supported block sizes (in bytes) include: 256K, 512K, 1M, 2M, 4M, 8M, 16M."
+          "description": "File system [block size](https://www.ibm.com/docs/en/spectrum-scale/5.1.5?topic=considerations-block-size). Spectrum Scale supported block sizes (in bytes) include: 256K, 512K, 1M, 2M, 4M, 8M, 16M."
         },
         {
           "name": "scale_storage_cluster_gui_username",
@@ -299,20 +285,40 @@
           "value": "",
           "type": "string",
           "secure": true,
-          "description": "Password for Compute cluster GUI. Note: Password should be at least 8 characters, must have one number, one lowercase letter, and one uppercase letter, at least one unique character. Password Should not contain username."
+          "description": "Password for Compute cluster GUI. Note: Password should be at least 8 characters, must have one number, one lowercase letter, one uppercase letter, and at least one unique character. Password Should not contain username."
         },
         {
           "name": "scale_compute_cluster_filesystem_mountpoint",
           "value": "/gpfs/fs1",
           "type": "string",
           "secure": false,
-          "description": "Compute cluster (accessingCluster) file system mount point. The accessingCluster is the cluster that accesses the owningCluster. For more information, see [Mounting a remote GPFS file system](https://www.ibm.com/docs/en/spectrum-scale/5.1.2?topic=system-mounting-remote-gpfs-file)."
+          "description": "Compute cluster (accessingCluster) file system mount point. The accessingCluster is the cluster that accesses the owningCluster. For more information, see [Mounting a remote GPFS file system](https://www.ibm.com/docs/en/spectrum-scale/5.1.5?topic=system-mounting-remote-gpfs-file)."
         },
         {
           "name": "TF_WAIT_DURATION",
           "value": "180s",
           "type": "string",
           "description": "wait duration time set for the storage and worker node to complete the entire setup"
+        },
+        {
+          "name": "enable_app_center",
+          "value": "false",
+          "type": "bool",
+          "description": "Set to true to install and enable use of the IBM Spectrum LSF Application Center GUI (default: false). [System requirements](https://www.ibm.com/docs/en/slac/10.2.0?topic=requirements-system-102-fix-pack-13) for IBM Spectrum LSF Application Center Version 10.2 Fix Pack 13."
+        },
+        {
+          "name": "app_center_gui_pwd",
+          "value": "",
+          "type": "string",
+          "secure": true,
+          "description": "Password for Application Center GUI. Note: Password should be at least 8 characters, must have one number, one lowercase letter, one uppercase letter, and at least one special character."
+        },
+        {
+          "name": "app_center_db_pwd",
+          "value": "",
+          "type": "string",
+          "secure": true,
+          "description": "Password for MariaDB. Note: Password should be at least 8 characters, must have one number, one lowercase letter, one uppercase letter, and at least one special character."
         }
       ]
     }

@@ -16,10 +16,10 @@ echo START `date '+%Y-%m-%d %H:%M:%S'`
 
 #input parameters
 rc_cidr_block="${rc_cidr_block}"
-controller_ips="${controller_ips}"
+management_host_ips="${management_host_ips}"
 storage_ips="${storage_ips}"
 cluster_name="HPCCluster"
 hyperthreading="${hyperthreading}"
 temp_public_key="${temp_public_key}"
-scale_mount_point = "${scale_mount_point}"
+scale_mount_point="${scale_mount_point}"
 spectrum_scale="${spectrum_scale}"

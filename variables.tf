@@ -25,12 +25,15 @@ variable "api_key" {
   }
 }
 
-variable "lsf_license_confirmation" {
+variable "ibm_customer_number" {
   type        = string
-  description = "If you have confirmed the availability of the Spectrum LSF license for a production cluster on IBM Cloud or if you are deploying a non-production cluster, enter true. Note:Failure to comply with licenses for production use of software is a violation of the[IBM International Program License Agreement](https://www.ibm.com/software/passportadvantage/programlicense.html)."
+  sensitive   = true
+  default     = ""
+  description = "Comma-separated list of the IBM Customer Number(s) (ICN) that is used for the Bring Your Own License (BYOL) entitlement check. For more information on how to find your ICN, see [What is my IBM Customer Number (ICN)?](https://www.ibm.com/support/pages/what-my-ibm-customer-number-icn)."
   validation {
-    condition = var.lsf_license_confirmation== "true"
-    error_message = "Confirm your use of IBM Spectrum LSF licenses. By entering 'true' for the property you have agreed to one of the two conditions. 1. You are using the software in production and confirm you have sufficient licenses to cover your use under the International Program License Agreement (IPLA). 2. You are evaluating the software and agree to abide by the International License Agreement for Evaluation of Programs (ILAE). NOTE: Failure to comply with licenses for production use of software is a violation of IBM International Program License Agreement. [Learn more](https://www.ibm.com/software/passportadvantage/programlicense.html)."
+    # regex(...) fails if the IBM customer number has special characters.  
+    condition     = can(regex("^[0-9A-Za-z]*([0-9A-Za-z]+,[0-9A-Za-z]+)*$", var.ibm_customer_number))
+    error_message = "The IBM customer number input value cannot have special characters."
   }
 }
 
@@ -38,27 +41,6 @@ variable "vpc_name" {
   type        = string
   description = "Name of an existing VPC in which the cluster resources will be deployed. If no value is given, then a new VPC will be provisioned for the cluster. [Learn more](https://cloud.ibm.com/docs/vpc)."
   default     = ""
-}
-
-### About LSF licensing
-variable "ls_entitlement" {
-  type        = string
-  default     = "LS_Standard  10.1  ()  ()  ()  ()  18b1928f13939bd17bf25e09a2dd8459f238028f"
-  description = "Entitlement file content for Spectrum LSF license scheduler."
-  validation {
-    condition     = trimspace(var.ls_entitlement) != ""
-    error_message = "Entitlement for LSF scheduler must be set."
-  }
-}
-
-variable "lsf_entitlement" {
-  type        = string
-  default     = "LSF_Standard  10.1  ()  ()  ()  pa  3f08e215230ffe4608213630cd5ef1d8c9b4dfea"
-  description = "Entitlement file content for core Spectrum LSF software."
-  validation {
-    condition     = trimspace(var.lsf_entitlement) != ""
-    error_message = "Entitlement for LSF must be set."
-  }
 }
 
 variable "resource_group" {
@@ -80,8 +62,8 @@ variable "zone" {
 
 variable "image_name" {
   type        = string
-  default     = "hpcc-lsf10-scale5131-rhel84-2-0-5"
-  description = "Name of the custom image that you want to use to create virtual server instances in your IBM Cloud account to deploy the IBM Spectrum LSF cluster. By default, the automation uses a base image with e with additional software packages documented [here](https://cloud.ibm.com/docs/ibm-spectrum-lsf). If you would like to include your application-specific binary files, follow the instructions in [Planning for custom images](https://cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the IBM Spectrum LSF cluster through this offering."
+  default     = "hpcc-lsf10-scale5151-rhel84-2-1"
+  description = "Name of the custom image that you want to use to create virtual server instances in your IBM Cloud account to deploy the IBM Spectrum LSF cluster. By default, the automation uses a base image with additional software packages documented [here](https://cloud.ibm.com/docs/ibm-spectrum-lsf). If you would like to include your application-specific binary files, follow the instructions in [Planning for custom images](https://cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the IBM Spectrum LSF cluster through this offering."
 }
 
 variable "management_node_instance_type" {
@@ -131,7 +113,7 @@ variable "storage_node_instance_type" {
 variable "worker_node_min_count" {
   type        = number
   default     = 0
-  description = "The minimum number of worker nodes. This is the number of static worker nodes that will be provisioned at the time the cluster is created. If using NFS storage, enter a value in the range 0 - 500. If using Spectrum Scale storage, enter a value in the range 1 - 64. NOTE: Spectrum Scale requires a minimum of 3 compute nodes (combination of controller, controller-candidate, and worker nodes) to establish a [quorum](https://www.ibm.com/docs/en/spectrum-scale/5.1.2?topic=failure-quorum#nodequo) and maintain data consistency in the even of a node failure. Therefore, the minimum value of 1 may need to be larger if the value specified for management_node_count is less than 2."
+  description = "The minimum number of worker nodes. This is the number of static worker nodes that will be provisioned at the time the cluster is created. If using NFS storage, enter a value in the range 0 - 500. If using Spectrum Scale storage, enter a value in the range 1 - 64. NOTE: Spectrum Scale requires a minimum of 3 compute nodes (combination of management-host, management-host-candidate, and worker nodes) to establish a [quorum](https://www.ibm.com/docs/en/spectrum-scale/5.1.5?topic=failure-quorum#nodequo) and maintain data consistency in the event of a node failure. Therefore, the minimum value of 1 may need to be larger if the value specified for management_node_count is less than 2."
   validation {
     condition     = 0 <= var.worker_node_min_count && var.worker_node_min_count <= 500
     error_message = "Input \"worker_node_min_count\" must be >= 0 and <= 500."
@@ -151,7 +133,7 @@ variable "worker_node_max_count" {
 variable "volume_capacity" {
   type        = number
   default     = 100
-  description = "Size in GB for the block storage that will be used to build the NFS instance and will be available as a mount on the Spectrum LSF controller node. Enter a value in the range 10 - 16000."
+  description = "Size in GB for the block storage that will be used to build the NFS instance and will be available as a mount on the Spectrum LSF management_host node. Enter a value in the range 10 - 16000."
   validation {
     condition     = 10 <= var.volume_capacity && var.volume_capacity <= 16000
     error_message = "Input \"volume_capacity\" must be >= 10 and <= 16000."
@@ -178,14 +160,22 @@ variable "management_node_count" {
   }
 }
 
-variable "ssh_allowed_ips" {
-  #type        = list(string)
-  #default     = ["0.0.0.0/0"]
-  #description = "Allowed a list of IP or CIDR for public SSH. All addresses are allowed with default."
-  type        = string
-  default     = "0.0.0.0/0"
-  description = "Comma-separated list of IP addresses that can access the Spectrum LSF instance through SSH interface. The default value allows any IP address to access the cluster."
-}
+variable "remote_allowed_ips" {
+	type        = list(string)
+	description = "Comma-separated list of IP addresses that can access the Spectrum LSF instance through an SSH or RDP interface. For security purposes, provide the public IP addresses assigned to the devices that are authorized to establish SSH or RDP connections (for example, [\"169.45.117.34\"]). To fetch the IP address of the device, use [https://ipv4.icanhazip.com/](https://ipv4.icanhazip.com/)."
+	validation {
+    condition     = alltrue([
+            for o in var.remote_allowed_ips : !contains(["0.0.0.0/0", "0.0.0.0"], o)
+            ])
+    error_message = "For the purpose of security provide the public IP address(es) assigned to the device(s) authorized to establish SSH connections. Use https://ipv4.icanhazip.com/ to fetch the ip address of the device."
+  }
+  validation {
+	  condition = alltrue([
+		for a in var.remote_allowed_ips : can(regex("^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$",a))
+	  ])
+	  error_message = "Provided IP address format is not valid. Check if Ip address format has comma instead of dot and there should be double quotes between each IP address range if using multiple ip ranges. For multiple IP address use format [\"169.45.117.34\",\"128.122.144.145\"]."
+	}
+  }
 
 variable "volume_profile" {
   type        = string
@@ -196,9 +186,8 @@ variable "volume_profile" {
 variable "hyperthreading_enabled" {
   type = bool
   default = true
-  description = "Setting this to true will enable hyper-threading in the worker nodes of the cluster (default). Otherwise, hyper-threading will be disabled. Note: Only a value of true is supported for this release. See this [FAQ](https://test.cloud.ibm.com/docs/ibm-spectrum-lsf?topic=ibm-spectrum-lsf-spectrum-lsf-faqs&interface=ui#disable-hyper-threading) for an explanation of why that is the case."
+  description = "Setting this to true will enable hyper-threading in the worker nodes of the cluster (default). Otherwise, hyper-threading will be disabled."
 }
-
 
 variable "vpn_enabled" {
   type = bool
@@ -264,7 +253,7 @@ variable "spectrum_scale_enabled"{
 
 variable "scale_storage_image_name" {
   type        = string
-  default     = "hpcc-scale5131-rhel84"
+  default     = "hpcc-scale5151-rhel84"
   description = "Name of the custom image that you would like to use to create virtual machines in your IBM Cloud account to deploy the Spectrum Scale storage cluster. By default, the automation uses a base image plus the Spectrum Scale software and any other software packages that it requires. If you would like, you can follow the instructions for [Planning for custom images](https://test.cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the Spectrum Scale storage cluster through this offering."
 }
 
@@ -292,7 +281,7 @@ variable "scale_storage_node_instance_type" {
 variable "scale_storage_cluster_filesystem_mountpoint" {
   type        = string
   default     = "/gpfs/fs1" 
-  description = "Spectrum Scale Storage cluster (owningCluster) Filesystem mount point. The owningCluster is the cluster that owns and serves the file system to be mounted. [Mounting a remote GPFS file system](https://www.ibm.com/docs/en/spectrum-scale/5.1.2?topic=system-mounting-remote-gpfs-file)."
+  description = "Spectrum Scale Storage cluster (owningCluster) Filesystem mount point. The owningCluster is the cluster that owns and serves the file system to be mounted. [Mounting a remote GPFS file system](https://www.ibm.com/docs/en/spectrum-scale/5.1.5?topic=system-mounting-remote-gpfs-file)."
 
   validation {
     condition     = can(regex("^\\/[a-z0-9A-Z-_]+\\/[a-z0-9A-Z-_]+$", var.scale_storage_cluster_filesystem_mountpoint))
@@ -303,7 +292,7 @@ variable "scale_storage_cluster_filesystem_mountpoint" {
 variable "scale_filesystem_block_size" {
   type        = string
   default     = "4M"
-  description = "File system [block size](https://www.ibm.com/docs/en/spectrum-scale/5.1.2?topic=considerations-block-size). Spectrum Scale supported block sizes (in bytes) include: 256K, 512K, 1M, 2M, 4M, 8M, 16M."
+  description = "File system [block size](https://www.ibm.com/docs/en/spectrum-scale/5.1.5?topic=considerations-block-size). Spectrum Scale supported block sizes (in bytes) include: 256K, 512K, 1M, 2M, 4M, 8M, 16M."
 
   validation {
     condition     = can(regex("^256K$|^512K$|^1M$|^2M$|^4M$|^8M$|^16M$", var.scale_filesystem_block_size))
@@ -316,21 +305,13 @@ variable "scale_storage_cluster_gui_username" {
   sensitive   = true
   default = ""
   description = "GUI user to perform system management and monitoring tasks on storage cluster. Note: Username should be at least 4 characters, any combination of lowercase and uppercase letters."
-  validation {
-    condition = var.scale_storage_cluster_gui_username == "" || (length(var.scale_storage_cluster_gui_username) >= 4 && length(var.scale_storage_cluster_gui_username) <= 32)
-    error_message = "Specified input for \"storage_cluster_gui_username\" is not valid. username should be greater or equal to 4 letters."
-  }
 }
 
 variable "scale_storage_cluster_gui_password" {
   type        = string
   sensitive   = true
   default     = ""
-  description = "Password for Spectrum Scale storage cluster GUI. Note: Password should be at least 8 characters, must have one number, one lowercase letter, one uppercase letter, and at least one unique character. Password Should not contain username"
-  validation {
-    condition = var.scale_storage_cluster_gui_password == "" || (length(var.scale_storage_cluster_gui_password) >= 8 && length(var.scale_storage_cluster_gui_password) <= 32)
-    error_message = "Password should be at least 8 characters, must have one number, one lowercase letter, and one uppercase letter, at least one unique character. Password Should not contain username."
-  }
+  description = "Password for Spectrum Scale storage cluster GUI. Note: Password should be at least 8 characters, must have one number, one lowercase letter, one uppercase letter, and at least one unique character. Password should not contain username."
 }
 
 variable "scale_compute_cluster_gui_username" {
@@ -338,27 +319,19 @@ variable "scale_compute_cluster_gui_username" {
   sensitive   = true
   default     = ""
   description = "GUI user to perform system management and monitoring tasks on compute cluster. Note: Username should be at least 4 characters, any combination of lowercase and uppercase letters."
-  validation {
-    condition = var.scale_compute_cluster_gui_username == "" || (length(var.scale_compute_cluster_gui_username) >= 4 && length(var.scale_compute_cluster_gui_username) <= 32)
-    error_message = "Specified input for \"storage_cluster_gui_username\" is not valid. username should be greater or equal to 4 letters."
-  }
 }
 
 variable "scale_compute_cluster_gui_password" {
   type        = string
   sensitive   = true
   default     = ""
-  description = "Password for Compute cluster GUI. Note: Password should be at least 8 characters, must have one number, one lowercase letter, and one uppercase letter, at least one unique character. Password Should not contain username."
-  validation {
-    condition =  var.scale_compute_cluster_gui_password == "" || (length(var.scale_compute_cluster_gui_password) >= 8 && length(var.scale_compute_cluster_gui_password) <= 32)
-    error_message = "Password should be at least 8 characters, must have one number, one lowercase letter, and one uppercase letter, at least one unique character. Password Should not contain username."
-  }
+  description = "Password for Compute cluster GUI. Note: Password should be at least 8 characters, must have one number, one lowercase letter, one uppercase letter, and at least one unique character. Password should not contain username."
 }
 
 variable "scale_compute_cluster_filesystem_mountpoint" {
   type        = string
   default     = "/gpfs/fs1"
-  description = "Compute cluster (accessingCluster) file system mount point. The accessingCluster is the cluster that accesses the owningCluster. For more information, see [Mounting a remote GPFS file system](https://www.ibm.com/docs/en/spectrum-scale/5.1.2?topic=system-mounting-remote-gpfs-file)."
+  description = "Compute cluster (accessingCluster) file system mount point. The accessingCluster is the cluster that accesses the owningCluster. For more information, see [Mounting a remote GPFS file system](https://www.ibm.com/docs/en/spectrum-scale/5.1.5?topic=system-mounting-remote-gpfs-file)."
   validation {
     condition     = can(regex("^\\/[a-z0-9A-Z-_]+\\/[a-z0-9A-Z-_]+$", var.scale_compute_cluster_filesystem_mountpoint))
     error_message = "Specified value for \"compute_cluster_filesystem_mountpoint\" is not valid (valid: /gpfs/fs1)."
@@ -369,4 +342,24 @@ variable "TF_WAIT_DURATION" {
   type = string
   default = "180s"
   description = "wait duration time set for the storage and worker node to complete the entire setup"
+}
+
+variable "enable_app_center" {
+  type = bool
+  default = false
+  description = "Set to true to install and enable use of the IBM Spectrum LSF Application Center GUI (default: false). [System requirements](https://www.ibm.com/docs/en/slac/10.2.0?topic=requirements-system-102-fix-pack-13) for IBM Spectrum LSF Application Center Version 10.2 Fix Pack 13."
+}
+
+variable "app_center_gui_pwd" { 
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "Password for Application Center GUI. Note: Password should be at least 8 characters, must have one number, one lowercase letter, one uppercase letter, and at least one special character."
+}
+
+variable "app_center_db_pwd" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "Password for MariaDB. Note: Password should be at least 8 characters, must have one number, one lowercase letter, one uppercase letter, and at least one special character."
 }

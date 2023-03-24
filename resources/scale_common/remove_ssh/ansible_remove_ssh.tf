@@ -41,7 +41,7 @@ resource "null_resource" "call_remove_ssh_playbook" {
       inventory_file = local.inventory_file_path
       verbose        = true
       extra_vars = {
-        "ansible_python_interpreter" : "/usr/bin/python3",
+        "ansible_python_interpreter" : "auto",
         "scale_cluster_definition_path" : local.inventory_file_path
         "ssh": replace(var.key_to_remove, "\n", "")
       }

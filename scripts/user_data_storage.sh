@@ -8,18 +8,18 @@ DATA_DIR=/data
 
 env
 
-#Update controller host name based on internal IP address
+#Update management_host name based on internal IP address
 privateIP=$(ip addr show eth0 | awk '$1 == "inet" {gsub(/\/.*$/, "", $2); print $2}')
 hostName=ibm-gen2host-${privateIP//./-}
 hostnamectl set-hostname ${hostName}
 
 # NOTE: On ibm gen2, the default DNS server do not have reverse hostname/IP resolution.
-# 1) put the controller server hostname and ip into lsf hosts.
+# 1) put the management_host server name and ip into lsf hosts.
 # 2) put all possible VMs' hostname and ip into lsf hosts.
 python -c "import ipaddress; print('\n'.join([str(ip) + ' ibm-gen2host-' + str(ip).replace('.', '-') for ip in ipaddress.IPv4Network(bytearray('${rc_cidr_block}'))]))" >> /etc/hosts
 
 yum install -y nfs-utils
-lsfadmin=1000
+lsfadmin=1001
 found=0
 while [ $found -eq 0 ]; do
     for vdx in `lsblk -d -n --output NAME`; do

@@ -80,7 +80,7 @@ resource "null_resource" "call_remote_mnt_playbook" {
       inventory_file = local.remote_mount_def_path
       verbose        = true
       extra_vars = {
-        "ansible_python_interpreter" : "/usr/bin/python3",
+        "ansible_python_interpreter" : "auto",
         "scale_cluster_definition_path" : local.remote_mount_def_path,
         "scale_install_updated" : false,
         "scale_config_changed" : false

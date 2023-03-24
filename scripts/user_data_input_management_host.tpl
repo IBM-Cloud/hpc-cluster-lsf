@@ -15,8 +15,6 @@ echo START `date '+%Y-%m-%d %H:%M:%S'`
 %EXPORT_USER_DATA%
 
 #input parameters
-LS_Entitlement="${ls_entitlement}"
-LSF_Entitlement="${lsf_entitlement}"
 VPC_APIKEY_VALUE="${vpc_apikey_value}"
 RESOURCE_RECORDS_APIKEY_VALUE="${vpc_apikey_value}"
 imageID="${image_id}"
@@ -38,10 +36,13 @@ rc_memInMB=${rc_memInMB}
 # the maximum allowed dynamic hosts created by RC
 rc_maxNum=${rc_maxNum}
 rc_rg=${rc_rg}
-controller_ips="${controller_ips}"
+management_host_ips="${management_host_ips}"
 storage_ips="${storage_ips}"
 cluster_name="HPCCluster"
 hyperthreading="${hyperthreading}"
 temp_public_key="${temp_public_key}"
-scale_mount_point = "${scale_mount_point}"
+scale_mount_point="${scale_mount_point}"
 spectrum_scale="${spectrum_scale}"
+enable_app_center="${enable_app_center}"
+app_center_gui_pwd="${app_center_gui_pwd}"
+app_center_db_pwd="${app_center_db_pwd}"

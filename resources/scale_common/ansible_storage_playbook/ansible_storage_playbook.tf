@@ -130,7 +130,7 @@ resource "null_resource" "call_scale_install_playbook" {
       verbose        = true
       extra_vars = {
         "scale_version" : var.scale_version,
-        "ansible_python_interpreter" : "/usr/bin/python3",
+        "ansible_python_interpreter" : "auto",
         "scale_cluster_definition_path" : local.scale_cluster_def_path,
         "scale_install_updated" : false,
         "scale_config_changed" : false

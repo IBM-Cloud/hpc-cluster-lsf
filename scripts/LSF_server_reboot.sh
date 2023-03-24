@@ -4,7 +4,7 @@
 ###################################################
 
 ### generate a script in /root which would be executed right after reboot through cronjobs
-LSF_TOP=/opt/ibm/<LSF_CONTROLLER_OR_WORKER>
+LSF_TOP=/opt/ibm/<LSF_MANAGEMENT_HOST_OR_WORKER>
 LSF_HOSTS_FILE=$LSF_TOP/conf/hosts
 
 cat > /root/.lsfstartup.sh  <<EOF
