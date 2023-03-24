@@ -32,7 +32,7 @@ data "ibm_is_vpc" "vpc" {
   // Depends on creation of new VPC or look up of existing VPC based on value of var.vpc_name,
   depends_on = [ibm_is_vpc.vpc, data.ibm_is_vpc.existing_vpc]
 }
-data "ibm_is_instance_profile" "controller" {
+data "ibm_is_instance_profile" "management_host" {
   name = var.management_node_instance_type
 }
 
@@ -76,12 +76,12 @@ locals {
 locals {
   script_map = {
     "storage" = file("${path.module}/scripts/user_data_input_storage.tpl")
-    "controller"  = file("${path.module}/scripts/user_data_input_controller.tpl")
+    "management_host"  = file("${path.module}/scripts/user_data_input_management_host.tpl")
     "worker"  = file("${path.module}/scripts/user_data_input_worker.tpl")
     "spectrum_storage" = file("${path.module}/scripts/user_data_spectrum_storage.tpl")
   }
   storage_template_file = lookup(local.script_map, "storage")
-  controller_template_file  = lookup(local.script_map, "controller")
+  management_host_template_file  = lookup(local.script_map, "management_host")
   worker_template_file  = lookup(local.script_map, "worker")
   tags                  = ["hpcc", var.cluster_prefix]
   vcpus                 = tonumber(data.ibm_is_instance_profile.worker.vcpu_count[0].value)
@@ -114,11 +114,9 @@ data "template_file" "storage_user_data" {
   }
 }
 
-data "template_file" "controller_user_data" {
-  template = local.controller_template_file
+data "template_file" "management_host_user_data" {
+  template = local.management_host_template_file
   vars = {
-    ls_entitlement                = var.ls_entitlement
-    lsf_entitlement               = var.lsf_entitlement
     vpc_apikey_value              = var.api_key
     resource_records_apikey_value = var.api_key
     image_id                      = local.image_mapping_entry_found? local.new_image_id :data.ibm_is_image.image[0].id
@@ -135,12 +133,15 @@ data "template_file" "controller_user_data" {
     rc_memInMB                    = local.memInMB
     rc_maxNum                     = local.rc_maxNum
     rc_rg                         = data.ibm_resource_group.rg.id
-    controller_ips                = join(" ", local.controller_ips)
+    management_host_ips           = join(" ", local.management_host_ips)
     storage_ips                   = join(" ", local.storage_ips)
     hyperthreading                = var.hyperthreading_enabled
     temp_public_key               = local.vsi_login_temp_public_key
     scale_mount_point             = var.scale_compute_cluster_filesystem_mountpoint
     spectrum_scale                = var.spectrum_scale_enabled
+    enable_app_center             = var.enable_app_center
+    app_center_gui_pwd            = var.app_center_gui_pwd
+    app_center_db_pwd             = var.app_center_db_pwd
   }
 }
 
@@ -148,10 +149,10 @@ data "template_file" "worker_user_data" {
   template = local.worker_template_file
   vars = {
     rc_cidr_block  = ibm_is_subnet.subnet.ipv4_cidr_block
-    controller_ips     = join(" ", local.controller_ips)
+    management_host_ips     = join(" ", local.management_host_ips)
     storage_ips    = join(" ", local.storage_ips)
     hyperthreading = var.hyperthreading_enabled
-    temp_public_key               = local.vsi_login_temp_public_key
+    temp_public_key               = var.spectrum_scale_enabled == true ? local.vsi_login_temp_public_key : "" # Public ssh for schematics will be updated only when spectrum scale is set as true
     scale_mount_point             = var.scale_compute_cluster_filesystem_mountpoint
     spectrum_scale                = var.spectrum_scale_enabled
   }
@@ -171,6 +172,7 @@ resource "ibm_is_vpc" "vpc" {
 }
 
 resource "ibm_is_public_gateway" "mygateway" {
+  count          = local.existing_public_gateway_zone != "" ? 0 : 1
   name           = "${var.cluster_prefix}-gateway"
   vpc            = data.ibm_is_vpc.vpc.id
   zone           = data.ibm_is_zone.zone.name
@@ -196,9 +198,16 @@ resource "ibm_is_subnet" "subnet" {
   vpc                      = data.ibm_is_vpc.vpc.id
   zone                     = data.ibm_is_zone.zone.name
   total_ipv4_address_count = local.total_ipv4_address_count
-  public_gateway           = ibm_is_public_gateway.mygateway.id
+  public_gateway           = local.existing_public_gateway_zone != "" ? local.existing_public_gateway_zone : ibm_is_public_gateway.mygateway[0].id
   resource_group           = data.ibm_resource_group.rg.id
   tags                     = local.tags
+}
+
+# Data block is used to get the subnet id from the existing vpc to fetch the public gateway details.
+
+data "ibm_is_subnet" "subnet_id" {
+  for_each   = var.vpc_name == "" ? [] : toset(data.ibm_is_vpc.vpc.subnets[*].id)
+  identifier = each.value
 }
 
 resource "ibm_is_security_group" "login_sg" {
@@ -208,13 +217,11 @@ resource "ibm_is_security_group" "login_sg" {
   tags           = local.tags
 }
 
-
 resource "ibm_is_security_group_rule" "login_ingress_tcp" {
-  #for_each  = toset(var.ssh_allowed_ips)
-  for_each  = toset(split(",", var.ssh_allowed_ips))
+  count     = length(var.remote_allowed_ips)
   group     = ibm_is_security_group.login_sg.id
   direction = "inbound"
-  remote    = each.value
+  remote    = var.remote_allowed_ips[count.index]
 
   tcp {
     port_min = 22
@@ -224,7 +231,6 @@ resource "ibm_is_security_group_rule" "login_ingress_tcp" {
 }
 
 resource "ibm_is_security_group_rule" "login_ingress_tcp_rhsm" {
-  for_each  = toset(split(",", var.ssh_allowed_ips))
   group     = ibm_is_security_group.login_sg.id
   direction = "inbound"
   remote    = "161.26.0.0/16"
@@ -236,7 +242,6 @@ resource "ibm_is_security_group_rule" "login_ingress_tcp_rhsm" {
 }
 
 resource "ibm_is_security_group_rule" "login_ingress_udp_rhsm" {
-  for_each  = toset(split(",", var.ssh_allowed_ips))
   group     = ibm_is_security_group.login_sg.id
   direction = "inbound"
   remote    = "161.26.0.0/16"
@@ -309,11 +314,10 @@ resource "ibm_is_security_group_rule" "ingress_all_local" {
 }
 
 module "schematics_sg_tcp_rule" {
-  count     = var.spectrum_scale_enabled ? 1 : 0
   source            = "./resources/ibmcloud/security"
   security_group_id = ibm_is_security_group.login_sg.id
   sg_direction      = "inbound"
-  remote_ip_addr    = tolist(["${chomp(data.http.fetch_myip.response_body)}"])
+  remote_ip_addr    = tolist([chomp(data.http.fetch_myip.response_body)])
   depends_on = [ibm_is_security_group.login_sg]
 }
 
@@ -327,7 +331,7 @@ data "ibm_is_instance_profile" "login" {
 }
 
 locals {
-  stock_image_name = "ibm-centos-7-6-minimal-amd64-2"
+  stock_image_name = "ibm-redhat-8-6-minimal-amd64-3"
 }
 
 data "ibm_is_image" "stock_image" {
@@ -335,15 +339,13 @@ data "ibm_is_image" "stock_image" {
 }
 
 locals{
-      vsi_login_temp_public_key = var.spectrum_scale_enabled ? module.login_ssh_key.public_key.0 : ""
+      vsi_login_temp_public_key = module.login_ssh_key.public_key
 }
 
 data "template_file" "login_user_data" {
   template = <<EOF
 #!/usr/bin/env bash
-if [ ${var.spectrum_scale_enabled} == true ]; then
-  echo "${local.vsi_login_temp_public_key}" >> ~/.ssh/authorized_keys
-fi
+echo "${local.vsi_login_temp_public_key}" >> ~/.ssh/authorized_keys
 EOF
 }
 
@@ -379,7 +381,7 @@ resource "ibm_is_instance" "login" {
 #                       IP ADDRESS MAPPING
 #####################################################################
 # LSF assumes all the node IPs are known before their startup.
-# This causes a cyclic dependency, e.g., controllers must know their IPs
+# This causes a cyclic dependency, e.g., management_hosts must know their IPs
 # before starting themselves. We resolve this by explicitly
 # assigining IP addresses calculated by cidrhost(cidr_block, index).
 #
@@ -402,14 +404,15 @@ resource "ibm_is_instance" "login" {
 # We also reserve four IPs for VPN
 # https://cloud.ibm.com/docs/vpc?topic=vpc-vpn-create-gateway
 #####################################################################
+
 locals {
   spectrum_storage_node_count = var.spectrum_scale_enabled ? var.scale_storage_node_count : 0
   total_ipv4_address_count = pow(2, ceil(log(local.spectrum_storage_node_count+ var.worker_node_max_count + var.management_node_count + 5 + 1 + 4, 2)))
 
-  controller_reboot_tmp = file("${path.module}/scripts/LSF_server_reboot.sh")
+  management_host_reboot_tmp = file("${path.module}/scripts/LSF_server_reboot.sh")
   worker_reboot_tmp = file("${path.module}/scripts/LSF_server_reboot.sh")
-  controller_reboot_str = replace(local.controller_reboot_tmp, "<LSF_CONTROLLER_OR_WORKER>", "lsf")
-  worker_reboot_str = replace(local.worker_reboot_tmp, "<LSF_CONTROLLER_OR_WORKER>", "lsf_worker")
+  management_host_reboot_str = replace(local.management_host_reboot_tmp, "<LSF_MANAGEMENT_HOST_OR_WORKER>", "lsf")
+  worker_reboot_str = replace(local.worker_reboot_tmp, "<LSF_MANAGEMENT_HOST_OR_WORKER>", "lsf_worker")
 
   storage_ips = [
     for idx in range(1) :
@@ -419,13 +422,13 @@ locals {
     for idx in range(local.spectrum_storage_node_count) :
     cidrhost(ibm_is_subnet.subnet.ipv4_cidr_block, idx + 4 + length(local.storage_ips))
   ]
-  controller_ips = [
+  management_host_ips = [
     for idx in range(var.management_node_count) :
     cidrhost(ibm_is_subnet.subnet.ipv4_cidr_block, idx + 4 + length(local.storage_ips) + length(local.spectrum_storage_ips))
   ]
   worker_ips = [
     for idx in range(var.worker_node_min_count) :
-    cidrhost(ibm_is_subnet.subnet.ipv4_cidr_block, idx + 4 + length(local.storage_ips) + length(local.spectrum_storage_ips) + length(local.controller_ips))
+    cidrhost(ibm_is_subnet.subnet.ipv4_cidr_block, idx + 4 + length(local.storage_ips) + length(local.spectrum_storage_ips) + length(local.management_host_ips))
   ]
   validate_worker_cnd = var.worker_node_min_count <= var.worker_node_max_count
   validate_worker_msg = "worker_node_max_count has to be greater or equal to worker_node_min_count"
@@ -440,6 +443,9 @@ locals {
     for name in local.ssh_key_list:
     data.ibm_is_ssh_key.ssh_key[name].id
   ]
+  # Get the list of public gateways from the existing vpc on provided var.zone input parameter. If no public gateway is found and in that zone our solution creates a new public gateway.
+  existing_pgs = [for subnetsdetails in data.ibm_is_subnet.subnet_id: subnetsdetails.public_gateway if subnetsdetails.zone == var.zone && subnetsdetails.public_gateway != ""]
+  existing_public_gateway_zone = var.vpc_name == "" ? "" : (length(local.existing_pgs) == 0 ? "" : element(local.existing_pgs ,0))
 }
 
 resource "ibm_is_instance" "storage" {
@@ -458,7 +464,9 @@ resource "ibm_is_instance" "storage" {
     name                 = "eth0"
     subnet               = ibm_is_subnet.subnet.id
     security_groups      = [ibm_is_security_group.sg.id]
-    primary_ipv4_address = local.storage_ips[count.index]
+    primary_ip {
+        address          = local.storage_ips[count.index]
+    }
   }
   depends_on = [
     ibm_is_security_group_rule.ingress_tcp,
@@ -467,22 +475,24 @@ resource "ibm_is_instance" "storage" {
   ]
 }
 
-resource "ibm_is_instance" "controller" {
+resource "ibm_is_instance" "management_host" {
   count          = 1
-  name           = "${var.cluster_prefix}-controller-${count.index}"
+  name           = "${var.cluster_prefix}-management-host-${count.index}"
   image          = local.image_mapping_entry_found? local.new_image_id :data.ibm_is_image.image[0].id
-  profile        = data.ibm_is_instance_profile.controller.name
+  profile        = data.ibm_is_instance_profile.management_host.name
   vpc            = data.ibm_is_vpc.vpc.id
   zone           = data.ibm_is_zone.zone.name
   keys           = local.ssh_key_id_list
   resource_group = data.ibm_resource_group.rg.id
-  user_data      = "${data.template_file.controller_user_data.rendered} ${file("${path.module}/scripts/LSF_management_static_server.sh")} ${local.controller_reboot_str}"
+  user_data      = "${data.template_file.management_host_user_data.rendered} ${file("${path.module}/scripts/LSF_management_static_server.sh")} ${local.management_host_reboot_str}"
   tags           = local.tags
   primary_network_interface {
     name                 = "eth0"
     subnet               = ibm_is_subnet.subnet.id
     security_groups      = [ibm_is_security_group.sg.id]
-    primary_ipv4_address = local.controller_ips[count.index]
+    primary_ip {
+        address          = local.management_host_ips[count.index]
+    }
   }
   depends_on = [
     module.login_ssh_key,
@@ -493,30 +503,58 @@ resource "ibm_is_instance" "controller" {
   ]
 }
 
-resource "ibm_is_instance" "controller_candidate" {
+locals {
+  products = var.spectrum_scale_enabled ? var.enable_app_center ? "lsf,scale,lsf-app-center" : "lsf,scale" : var.enable_app_center ? "lsf,lsf-app-center" : "lsf"
+}
+
+resource "null_resource" "entitlement_check" {
+  count = local.image_mapping_entry_found ? 1 : 0
+  connection {
+    type                = "ssh"
+    host                = ibm_is_instance.management_host[0].primary_network_interface[0].primary_ip.0.address
+    user                = "root"
+    private_key         = module.login_ssh_key.private_key
+    bastion_host        = ibm_is_floating_ip.login_fip.address
+    bastion_user        = "root"
+    bastion_private_key = module.login_ssh_key.private_key
+    timeout             = "15m"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "python3 /opt/IBM/cloud_entitlement/entitlement_check.py --products ${local.products} --icns ${var.ibm_customer_number}"
+    ]
+  }
+  depends_on = [ibm_is_instance.management_host, ibm_is_floating_ip.login_fip, ibm_is_instance.login]
+}
+
+resource "ibm_is_instance" "management_host_candidate" {
   count          = var.management_node_count - 1
-  name           = "${var.cluster_prefix}-controller-candidate-${count.index}"
+  name           = "${var.cluster_prefix}-management-host-candidate-${count.index}"
   image          = local.image_mapping_entry_found? local.new_image_id :data.ibm_is_image.image[0].id
-  profile        = data.ibm_is_instance_profile.controller.name
+  profile        = data.ibm_is_instance_profile.management_host.name
   vpc            = data.ibm_is_vpc.vpc.id
   zone           = data.ibm_is_zone.zone.name
   keys           = local.ssh_key_id_list
   resource_group = data.ibm_resource_group.rg.id
-  user_data      = "${data.template_file.controller_user_data.rendered} ${file("${path.module}/scripts/LSF_management_static_candidate_server.sh")} ${local.controller_reboot_str}"
+  user_data      = "${data.template_file.management_host_user_data.rendered} ${file("${path.module}/scripts/LSF_management_static_candidate_server.sh")} ${local.management_host_reboot_str}"
   tags           = local.tags
   primary_network_interface {
     name                 = "eth0"
     subnet               = ibm_is_subnet.subnet.id
     security_groups      = [ibm_is_security_group.sg.id]
-    primary_ipv4_address = local.controller_ips[count.index + 1]
+    primary_ip {
+        address          = local.management_host_ips[count.index + 1]
+    }
   }
   depends_on = [
     module.login_ssh_key,
     ibm_is_instance.storage,
-    ibm_is_instance.controller,
+    ibm_is_instance.management_host,
     ibm_is_security_group_rule.ingress_tcp,
     ibm_is_security_group_rule.ingress_all_local,
     ibm_is_security_group_rule.egress_all,
+    null_resource.entitlement_check
   ]
 }
 
@@ -534,7 +572,7 @@ data "template_file" "metadata_startup_script" {
   vars = {
     temp_public_key = local.vsi_login_temp_public_key
     rc_cidr_block  = ibm_is_subnet.subnet.ipv4_cidr_block
-    controller_ips     = join(" ", local.controller_ips)
+    management_host_ips     = join(" ", local.management_host_ips)
     storage_ips    = join(" ", local.storage_ips)
     instance_profile_type = data.ibm_is_instance_profile.spectrum_scale_storage.disks.0.quantity.0.type
   }
@@ -563,16 +601,19 @@ resource "ibm_is_instance" "spectrum_scale_storage" {
     name                 = "eth0"
     subnet               = ibm_is_subnet.subnet.id
     security_groups      = [ibm_is_security_group.sg.id]
-    primary_ipv4_address = local.spectrum_storage_ips[count.index]
+    primary_ip {
+        address          = local.spectrum_storage_ips[count.index]
+    }
   }
   depends_on = [
     module.login_ssh_key,
     ibm_is_instance.storage,
-    ibm_is_instance.controller,
+    ibm_is_instance.management_host,
     ibm_is_instance.login,
     ibm_is_security_group_rule.ingress_tcp,
     ibm_is_security_group_rule.ingress_all_local,
     ibm_is_security_group_rule.egress_all,
+    null_resource.entitlement_check
   ]
 }
 
@@ -593,16 +634,19 @@ resource "ibm_is_instance" "worker" {
     name                 = "eth0"
     subnet               = ibm_is_subnet.subnet.id
     security_groups      = [ibm_is_security_group.sg.id]
-    primary_ipv4_address = local.worker_ips[count.index]
+    primary_ip {
+        address          = local.worker_ips[count.index]
+    }
   }
   depends_on = [
     module.login_ssh_key,
     ibm_is_instance.storage,
-    ibm_is_instance.controller,
-    ibm_is_instance.controller_candidate,
+    ibm_is_instance.management_host,
+    ibm_is_instance.management_host_candidate,
     ibm_is_security_group_rule.ingress_tcp,
     ibm_is_security_group_rule.ingress_all_local,
     ibm_is_security_group_rule.egress_all,
+    null_resource.entitlement_check
   ]
 }
 
@@ -683,10 +727,10 @@ locals {
   tf_data_path              =  "/tmp/.schematics/IBM/tf_data_path"
   tf_input_json_root_path   = null
   tf_input_json_file_name   = null
-  scale_version             = "5.1.3.1" # This is the scale version that is installed on the custom images
+  scale_version             = "5.1.5.1" # This is the scale version that is installed on the custom images
   cloud_platform            = "IBMCloud"
   scale_infra_repo_clone_path = "/tmp/.schematics/IBM/ibm-spectrumscale-cloud-deploy"
-  storage_vsis_1A_by_ip = ibm_is_instance.spectrum_scale_storage[*].primary_network_interface[0]["primary_ipv4_address"]
+  storage_vsis_1A_by_ip = ibm_is_instance.spectrum_scale_storage[*].primary_network_interface[0].primary_ip.0.address
   strg_vsi_ids_0_disks = ibm_is_instance.spectrum_scale_storage.*.id
   storage_vsi_ips_with_0_datadisks = local.storage_vsis_1A_by_ip
   vsi_data_volumes_count = 0
@@ -695,8 +739,9 @@ locals {
     instance => local.vsi_data_volumes_count == 0 ? data.ibm_is_instance_profile.spectrum_scale_storage.disks.0.quantity.0.value == 1 ? ["/dev/vdb"] : ["/dev/vdb", "/dev/vdc"] : null
   }
   total_compute_instances = var.management_node_count + var.worker_node_min_count
-  compute_vsi_ids_0_disks = concat(ibm_is_instance.controller.*.id, ibm_is_instance.controller_candidate.*.id, ibm_is_instance.worker.*.id)
-  compute_vsi_by_ip = concat(ibm_is_instance.controller[*].primary_network_interface[0]["primary_ipv4_address"], ibm_is_instance.controller_candidate[*].primary_network_interface[0]["primary_ipv4_address"], ibm_is_instance.worker[*].primary_network_interface[0]["primary_ipv4_address"])
+  compute_vsi_ids_0_disks = concat(ibm_is_instance.management_host.*.id, ibm_is_instance.management_host_candidate.*.id, ibm_is_instance.worker.*.id)
+  management_host_vsi_ip = concat(ibm_is_instance.management_host[*].primary_network_interface[0].primary_ip.0.address, ibm_is_instance.management_host_candidate[*].primary_network_interface[0].primary_ip.0.address)
+  compute_vsi_by_ip = concat(local.management_host_vsi_ip, ibm_is_instance.worker[*].primary_network_interface[0].primary_ip.0.address)
   validate_scale_count_cnd =  !var.spectrum_scale_enabled || (var.spectrum_scale_enabled && (var.scale_storage_node_count > 1))
   validate_scale_count_msg = "Input \"scale_storage_node_count\" must be >= 2 and <= 18 and has to be divisible by 2."
   validate_scale_count_chk = regex(
@@ -719,34 +764,6 @@ locals {
       ( local.validate_scale_worker_max_cnd
         ? local.validate_scale_worker_max_msg
         : ""))
-
-  //validate storage gui password
-  validate_storage_gui_password_cnd = (var.spectrum_scale_enabled && (replace(lower(var.scale_storage_cluster_gui_password), lower(var.scale_storage_cluster_gui_username), "" ) == lower(var.scale_storage_cluster_gui_password)) && can(regex("^.{8,}$", var.scale_storage_cluster_gui_password) != "") && can(regex("[0-9]{1,}", var.scale_storage_cluster_gui_password) != "") && can(regex("[a-z]{1,}", var.scale_storage_cluster_gui_password) != "") && can(regex("[A-Z]{1,}",var.scale_storage_cluster_gui_password ) != "") && can(regex("[!@#$%^&*()_+=-]{1,}", var.scale_storage_cluster_gui_password ) != "" )&& trimspace(var.scale_storage_cluster_gui_password) != "") || !var.spectrum_scale_enabled
-  gui_password_msg = "Password should be at least 8 characters, must have one number, one lowercase letter, and one uppercase letter, at least one unique character. Password Should not contain username"
-  validate_storage_gui_password_chk = regex(
-          "^${local.gui_password_msg}$",
-          ( local.validate_storage_gui_password_cnd ? local.gui_password_msg : "") )
-
-  // validate compute gui password
-  validate_compute_gui_password_cnd = (var.spectrum_scale_enabled && (replace(lower(var.scale_compute_cluster_gui_password), lower(var.scale_compute_cluster_gui_username),"") == lower(var.scale_compute_cluster_gui_password)) && can(regex("^.{8,}$", var.scale_compute_cluster_gui_password) != "") && can(regex("[0-9]{1,}", var.scale_compute_cluster_gui_password) != "") && can(regex("[a-z]{1,}", var.scale_compute_cluster_gui_password) != "") && can(regex("[A-Z]{1,}",var.scale_compute_cluster_gui_password ) != "") && can(regex("[!@#$%^&*()_+=-]{1,}", var.scale_compute_cluster_gui_password ) != "" )&& trimspace(var.scale_compute_cluster_gui_password) != "") || !var.spectrum_scale_enabled
-  validate_compute_gui_password_chk = regex(
-          "^${local.gui_password_msg}$",
-          ( local.validate_compute_gui_password_cnd ? local.gui_password_msg : ""))
-
-  //validate scale storage gui user name
-  validate_scale_storage_gui_username_cnd = (var.spectrum_scale_enabled && length(var.scale_storage_cluster_gui_username) >= 4 && length(var.scale_storage_cluster_gui_username) <= 32 && trimspace(var.scale_storage_cluster_gui_username) != "") || !var.spectrum_scale_enabled
-  storage_gui_username_msg = "Specified input for \"storage_cluster_gui_username\" is not valid."
-  validate_storage_gui_username_chk = regex(
-          "^${local.storage_gui_username_msg}",
-          (local.validate_scale_storage_gui_username_cnd? local.storage_gui_username_msg: ""))
-
-  // validate compute gui username
-  validate_compute_gui_username_cnd = (var.spectrum_scale_enabled && length(var.scale_compute_cluster_gui_username) >= 4 && length(var.scale_compute_cluster_gui_username) <= 32 && trimspace(var.scale_compute_cluster_gui_username) != "") || !var.spectrum_scale_enabled
-  compute_gui_username_msg = "Specified input for \"compute_cluster_gui_username\" is not valid."
-  validate_compute_gui_username_chk = regex(
-          "^${local.compute_gui_username_msg}",
-          (local.validate_compute_gui_username_cnd? local.compute_gui_username_msg: ""))
-
 }
 
 module "login_ssh_key" {
@@ -768,7 +785,7 @@ module "compute_nodes_wait" { # Setting up the variable time as 180s for the ent
   count         = (var.spectrum_scale_enabled && var.scale_storage_node_count > 0) ? 1 : 0
   source        = "./resources/scale_common/wait"
   wait_duration = var.TF_WAIT_DURATION
-  depends_on    = [ibm_is_instance.controller,ibm_is_instance.controller_candidate, ibm_is_instance.worker]
+  depends_on    = [ibm_is_instance.management_host,ibm_is_instance.management_host_candidate, ibm_is_instance.worker]
 }
 
 
@@ -831,7 +848,7 @@ module "invoke_compute_playbook" {
   compute_instances_by_id          = jsonencode(local.compute_vsi_ids_0_disks)
   host                             = chomp(data.http.fetch_myip.response_body)
   compute_instances_by_ip          = local.compute_vsi_by_ip == null ? jsonencode([]) : jsonencode(local.compute_vsi_by_ip)
-  depends_on                       = [module.login_ssh_key, ibm_is_instance.controller, ibm_is_instance.controller_candidate, ibm_is_instance.worker, module.compute_nodes_wait]
+  depends_on                       = [module.login_ssh_key, ibm_is_instance.management_host, ibm_is_instance.management_host_candidate, ibm_is_instance.worker, module.compute_nodes_wait]
 }
 
 // This module is used to invoke remote mount
@@ -861,17 +878,19 @@ module "permission_to_lsfadmin_for_mount_point" {
   depends_on = [module.invoke_remote_mount]
 }
 
+# Module removes the public ssh key created by Schematics to access all nodes for both LSF and Scale deployment.
 module "remove_ssh_key" {
-  count = var.spectrum_scale_enabled ? 1 : 0
   source = "./resources/scale_common/remove_ssh"
-  bastion_ssh_private_key = var.spectrum_scale_enabled ? module.login_ssh_key.private_key_path : ""
-  compute_instances_by_ip = local.compute_vsi_by_ip == null ? jsonencode([]) : jsonencode(local.compute_vsi_by_ip)
-  key_to_remove = var.spectrum_scale_enabled? module.login_ssh_key.public_key.0: ""
+  bastion_ssh_private_key = module.login_ssh_key.private_key_path
+  # compute_vsi_by_ip fetches the primary IP address of Management/Management_candidate/Worker nodes, when spectrum scale is set as true.
+  compute_instances_by_ip = var.spectrum_scale_enabled ? jsonencode(local.compute_vsi_by_ip) : jsonencode(ibm_is_instance.management_host[*].primary_network_interface[0].primary_ip.0.address)
+  key_to_remove = module.login_ssh_key.public_key
   login_ip = ibm_is_floating_ip.login_fip.address
-  storage_vsis_1A_by_ip = jsonencode(local.storage_vsis_1A_by_ip)
+  storage_vsis_1A_by_ip = var.spectrum_scale_enabled == true ? jsonencode(local.storage_vsis_1A_by_ip) : jsonencode([])
   host = chomp(data.http.fetch_myip.response_body)
-  depends_on = [module.permission_to_lsfadmin_for_mount_point, module.invoke_remote_mount]
+  depends_on = [module.permission_to_lsfadmin_for_mount_point, module.invoke_remote_mount, null_resource.entitlement_check]
 }
+
 
 data "ibm_iam_auth_token" "token" {}
 
@@ -882,7 +901,7 @@ resource "null_resource" "delete_schematics_ingress_security_rule" { # This code
       REFRESH_TOKEN       = data.ibm_iam_auth_token.token.iam_refresh_token
       REGION              = local.region_name
       SECURITY_GROUP      = ibm_is_security_group.login_sg.id
-      SECURITY_GROUP_RULE = module.schematics_sg_tcp_rule[0].security_rule_id[0]
+      SECURITY_GROUP_RULE = module.schematics_sg_tcp_rule.security_rule_id
     }
     command     = <<EOT
           echo $SECURITY_GROUP
@@ -896,6 +915,6 @@ resource "null_resource" "delete_schematics_ingress_security_rule" { # This code
         EOT
   }
   depends_on = [
-    module.remove_ssh_key, module.schematics_sg_tcp_rule
+    module.remove_ssh_key, module.schematics_sg_tcp_rule, null_resource.entitlement_check
   ]
 }

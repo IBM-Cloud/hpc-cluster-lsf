@@ -13,7 +13,7 @@ echo START `date '+%Y-%m-%d %H:%M:%S'` >> $logfile
 vmPrefix="icgen2host"
 nfs_server=${storage_ips}
 nfs_mount_dir="data"
-lsfserverhosts=`echo "${controller_ips//./-}" | sed -e "s/^/$vmPrefix-/g" | sed -e "s/ / $vmPrefix-/g"`
+lsfserverhosts=`echo "${management_host_ips//./-}" | sed -e "s/^/$vmPrefix-/g" | sed -e "s/ / $vmPrefix-/g"`
 #cluster_name="lsf_rc"
 
 
@@ -32,7 +32,7 @@ hostnamectl set-hostname ${lsfWorkerhostname}
 host_prefix=$(hostname|cut -f1-4 -d -)
 
 # NOTE: On ibm gen2, the default DNS server do not have reverse hostname/IP resolution.
-# 1) put the controller server hostname and ip into lsf hosts.
+# 1) put the management_host server name and ip into lsf hosts.
 # 2) put all possible VMs' hostname and ip into lsf hosts.
 python3 -c "import ipaddress; print('\n'.join([str(ip) + ' ${vmPrefix}-' + str(ip).replace('.', '-') for ip in ipaddress.IPv4Network('${rc_cidr_block}')]))" >> /etc/hosts
 
@@ -56,7 +56,7 @@ fi
 env >> $logfile
 python3 -c "import ipaddress; print('\n'.join([str(ip) + ' ${vmPrefix}-' + str(ip).replace('.', '-') for ip in ipaddress.IPv4Network('${rc_cidr_block}')]))" > $LSF_HOSTS_FILE
 
-#update controller hostname
+#update management_host name
 sed -i "s/LSFServerhosts/$lsfserverhosts/"  $LSF_CONF_FILE
 sed -i "s/LSF_LOCAL_RESOURCES/#LSF_LOCAL_RESOURCES/"  $LSF_CONF_FILE
 #echo "LSF_MQ_BROKER_HOSTS=\"${lsfserverhosts}\"" >> $LSF_CONF_FILE
@@ -100,12 +100,11 @@ export PATH=/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:\`echo "\$PATHs" |
 EOF
 
 # Change the MTU setting as this is required for setting mtu as 9000 for communication to happen between clusters
-ip route replace $rc_cidr_block  dev eth0 proto kernel scope link src $privateIP mtu 9000
-echo 'ip route replace '$rc_cidr_block' dev eth0 proto kernel scope link src '$privateIP' mtu 9000' >> /etc/sysconfig/network-scripts/route-eth0
-
+echo "MTU=9000" >> "/etc/sysconfig/network-scripts/ifcfg-eth0"
+systemctl restart NetworkManager
 # TODO: disallow root login
 
-# Allow ssh from controllers
+# Allow ssh from management_hosts
 sed -i "s#^\(AuthorizedKeysFile.*\)#\1 /mnt/$nfs_mount_dir/ssh/authorized_keys#g" /etc/ssh/sshd_config
 systemctl restart sshd
 

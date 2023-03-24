@@ -30,22 +30,15 @@ networkIPrange=$(echo ${privateIP}|cut -f1-3 -d .)
 host_prefix=$(hostname|cut -f1-4 -d -)
 
 # Change the MTU setting as this is required for setting mtu as 9000 for communication to happen between clusters
-ip route replace $rc_cidr_block  dev eth0 proto kernel scope link src $privateIP mtu 9000
-echo 'ip route replace '$rc_cidr_block' dev eth0 proto kernel scope link src '$privateIP' mtu 9000' >> /etc/sysconfig/network-scripts/route-eth0
-
-#for controllerIP in $controller_ips; do
-  #if [ "$controllerIP" != "$privateIP" ]; then
-      #ip route add $controllerIP dev eth0 mtu 9000
-      #echo 'ip route add '$controllerIP' dev eth0 mtu 9000' >> /etc/sysconfig/network-scripts/route-eth0
-  #fi
-#done
+echo "MTU=9000" >> "/etc/sysconfig/network-scripts/ifcfg-eth0"
+systemctl restart NetworkManager
 
 # NOTE: On ibm gen2, the default DNS server do not have reverse hostname/IP resolution.
-# 1) put the controller server hostname and ip into lsf hosts.
+# 1) put the management_host server name and ip into lsf hosts.
 # 2) put all possible VMs' hostname and ip into lsf hosts.
 python3 -c "import ipaddress; print('\n'.join([str(ip) + ' ${vmPrefix}-' + str(ip).replace('.', '-') for ip in ipaddress.IPv4Network('${rc_cidr_block}')]))" >> /etc/hosts
 
-#Update controller host name based on with nfs share or not
+#Update management_host name based on with nfs share or not
 if ([ -n "${nfs_server}" ] && [ -n "${nfs_mount_dir}" ]); then
   echo "NFS server and share found, start mount nfs share!" >> $logfile
   #Mount the nfs share
@@ -85,8 +78,6 @@ LSF_TOP=/opt/ibm/lsf
 LSF_CONF=$LSF_TOP/conf
 LSF_IBM_GEN2=$LSF_CONF/resource_connector/ibmcloudgen2
 LSF_CONF_FILE=$LSF_CONF/lsf.conf
-LSF_ENTITLEMENT_FILE=$LSF_CONF/lsf.entitlement
-LS_ENTITLEMENT_FILE=$LSF_CONF/ls.entitlement
 LSF_HOSTS_FILE=$LSF_CONF/hosts
 LSB_HOSTS_FILE=$LSF_CONF/lsbatch/$newclustername/configdir/lsb.hosts
 LSF_EGO_CONF_FILE=$LSF_CONF/ego/$newclustername/kernel/ego.conf
@@ -101,9 +92,6 @@ env >> $logfile
 
 python3 -c "import ipaddress; print('\n'.join([str(ip) + ' ${vmPrefix}-' + str(ip).replace('.', '-') for ip in ipaddress.IPv4Network('${rc_cidr_block}')]))" >> $LSF_HOSTS_FILE
 
-#Update LSF and LS entitlement
-echo $LS_Entitlement >> $LS_ENTITLEMENT_FILE
-echo $LSF_Entitlement >> $LSF_ENTITLEMENT_FILE
 
 #Update cluster name from all configuration files to the new cluster name
 if [ ! -z $cluster_name ]
@@ -120,21 +108,21 @@ then
    done
 fi
 
-#update the lsf controller hostname
+#update the lsf management_host name
 grep -rli 'lsfservers' $LSF_CONF/*|xargs sed -i "s/lsfservers/${ManagementHostName}/g"
 
 #Add management candidate host into lsf cluster
-ManagementHostNames=`echo "${controller_ips//./-}" | sed -e "s/^/${vmPrefix}-/g" | sed -e "s/ / ${vmPrefix}-/g"`
-sed -i "s/LSF_CONTROLLER_LIST=.*/LSF_CONTROLLER_LIST=\"${ManagementHostNames}\"/g" $LSF_CONF_FILE
-sed -i "s/EGO_CONTROLLER_LIST=.*/EGO_CONTROLLER_LIST=\"${ManagementHostNames}\"/g" $LSF_EGO_CONF_FILE
+ManagementHostNames=`echo "${management_host_ips//./-}" | sed -e "s/^/${vmPrefix}-/g" | sed -e "s/ / ${vmPrefix}-/g"`
+sed -i "s/LSF_MANAGEMENT_HOST_LIST=.*/LSF_MANAGEMENT_HOST_LIST=\"${ManagementHostNames}\"/g" $LSF_CONF_FILE
+sed -i "s/EGO_MANAGEMENT_HOST_LIST=.*/EGO_MANAGEMENT_HOST_LIST=\"${ManagementHostNames}\"/g" $LSF_EGO_CONF_FILE
 for ManagementCandidateHostName in ${ManagementHostNames}; do
   if [ "${ManagementCandidateHostName}" != "${ManagementHostName}" ]; then
     sed -i "/^$ManagementHostName.*/a ${ManagementCandidateHostName} ! ! 1 (mg)" $LSF_CLUSTER_FILE
     sed -i "/^#hostE.*/a ${ManagementCandidateHostName} 0 () () () () () (Y)" $LSB_HOSTS_FILE
   fi
 done
-sed -i "s/controller_hosts.*/controller_hosts (${ManagementHostNames} )/g" $LSB_HOSTS_FILE
-# TODO: ebrokerd runs only on the primary controller. Can we create/delete dynamic workers after failover?
+sed -i "s/management_host_hosts.*/management_host_hosts (${ManagementHostNames} )/g" $LSB_HOSTS_FILE
+# TODO: ebrokerd runs only on the primary management_host. Can we create/delete dynamic workers after failover?
 # https://www.ibm.com/docs/en/spectrum-lsf/10.1.0?topic=connnector-lsf-resource-connector-overview
 #sed -i "s/LSF_MQ_BROKER_HOSTS=.*/LSF_MQ_BROKER_HOSTS=\"${ManagementHostNames}\"/g" $LSF_CONF_FILE
 #sed -i "s/LSF_DATA_HOSTS=.*/LSF_DATA_HOSTS=\"${ManagementHostNames}\"/g" $LSF_CONF_FILE
@@ -168,9 +156,16 @@ sed -i "s/template1_maxNum/${rc_maxNum}/" $IBM_CLOUD_TEMPLATE_FILE
 sed -i "s/rgId-value/${rc_rg}/" $IBM_CLOUD_TEMPLATE_FILE
 sed -i "s/icgen2host/${vmPrefix}/" $IBM_CLOUD_CONF_FILE
 cat >> $IBM_CLOUD_USER_DATA_FILE << EOF
-privateIP=\$(ip addr show eth0 | awk '\$1 == "inet" {gsub(/\/.*$/, "", \$2); print \$2}')
-ip route replace $rc_cidr_block  dev eth0 proto kernel scope link src \$privateIP mtu 9000
-ip route replace $rc_cidr_block dev eth0 proto kernel scope link src '\$privateIP' mtu 9000' >> /etc/sysconfig/network-scripts/route-eth0
+# Allow login as lsfadmin
+nfs_mount_dir="data"
+mkdir -p /home/lsfadmin/.ssh
+cp /mnt/$nfs_mount_dir/ssh/authorized_keys /home/lsfadmin/.ssh/authorized_keys
+cat /mnt/$nfs_mount_dir/ssh/id_rsa.pub >> /root/.ssh/authorized_keys
+chmod 600 /home/lsfadmin/.ssh/authorized_keys
+chmod 700 /home/lsfadmin/.ssh
+chown -R lsfadmin:lsfadmin /home/lsfadmin/.ssh
+echo "MTU=9000" >> "/etc/sysconfig/network-scripts/ifcfg-eth0"
+systemctl restart NetworkManager
 EOF
 
 if $hyperthreading; then
@@ -190,7 +185,7 @@ mkdir -p /mnt/$nfs_mount_dir
 mount -t nfs $nfs_server:/$nfs_mount_dir /mnt/$nfs_mount_dir
 echo "$nfs_server:/$nfs_mount_dir /mnt/$nfs_mount_dir nfs rw,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,_netdev 0 0 " >> /etc/fstab
 ln -s /mnt/$nfs_mount_dir /home/lsfadmin/shared
-# Allow ssh from controller
+# Allow ssh from management_host
 sed -i "s#^\(AuthorizedKeysFile.*\)#\1 /mnt/$nfs_mount_dir/ssh/authorized_keys#g" /etc/ssh/sshd_config
 systemctl restart sshd
 #echo "LSF_MQ_BROKER_HOSTS=\"${ManagementHostNames}\"" >> /opt/ibm/lsf_worker/conf/lsf.conf
@@ -256,8 +251,6 @@ EOF
 # TODO: disallow root login
 
 cat $LSF_HOSTS_FILE >> $logfile
-cat $LSF_ENTITLEMENT_FILE >> $logfile
-cat $LS_ENTITLEMENT_FILE >> $logfile
 cat $IBM_CLOUD_CREDENTIALS_FILE >> $logfile
 cat $IBM_CLOUD_TEMPLATE_FILE >> $logfile
 cat $IBM_CLOUD_USER_DATA_FILE >> $logfile
@@ -269,4 +262,152 @@ sleep 5
 lsf_daemons start &
 sleep 5
 lsf_daemons status >> $logfile
+
+#############################################################
+#########    Application Center Installation  ###############
+#############################################################
+
+if [ "$enable_app_center" = true ] ;
+then
+    sleep 30
+    echo "---------------------------------------" >> $logfile
+    echo "Starting Application Center Installation" >> $logfile
+    echo "---------------------------------------" >> $logfile
+
+    ## Extras Check config files
+    su - lsfadmin -c "lsadmin ckconfig -v"
+
+    ## Update lsfadmin password, use this when logging into application center
+    echo ${app_center_gui_pwd} | sudo passwd --stdin lsfadmin >> $logfile
+
+    ## Add the parameter ALLOW_EVENT_TYPE
+    sed -i '$i\\ALLOW_EVENT_TYPE=JOB_NEW JOB_STATUS JOB_FINISH2 JOB_START JOB_EXECUTE JOB_EXT_MSG JOB_SIGNAL JOB_REQUEUE JOB_MODIFY2 JOB_SWITCH METRIC_LOG' $LSF_ENVDIR/lsbatch/HPCCluster/configdir/lsb.params
+
+    ## Enable event streaming
+    sed -i '$i\\ENABLE_EVENT_STREAM=Y' $LSF_ENVDIR/lsbatch/HPCCluster/configdir/lsb.params
+
+    ## parameter LSB_QUERY_PORT is set
+    grep -ir lsb_query_port $LSF_ENVDIR/lsf.conf
+
+    ## Set the parameter NEWJOB_REFRESH=Y in the configuration file lsb.params.
+    sed -i 's/NEWJOB_REFRESH=y/NEWJOB_REFRESH=Y/g' $LSF_ENVDIR/lsbatch/HPCCluster/configdir/lsb.params
+
+    sleep 5
+
+    ## Run the command badmin reconfig to reconfigure mbatchd.
+    su - lsfadmin -c "badmin reconfig"
+
+    ## set the parameter LSF_DISABLE_LSRUN=N; first do manual check of parameter
+    grep -ir LSF_DISABLE_LSRUN $LSF_ENVDIR/lsf.conf
+    sed -i 's/LSF_DISABLE_LSRUN=Y/LSF_DISABLE_LSRUN=N/g' $LSF_ENVDIR/lsf.conf
+
+    ## PAC needs some stuff to run as root
+    echo 'LSB_BSUB_PARSE_SCRIPT=Y' >> $LSF_ENVDIR/lsf.conf
+    echo LSF_ADDON_HOSTS=$HOSTNAME >> $LSF_ENVDIR/lsf.conf
+
+    sleep 5
+
+    ## apply changes
+    su - lsfadmin -c "lsfrestart -f"
+
+    sleep 10
+
+    su - lsfadmin -c "lsadmin resrestart -f all"
+
+    ## Install Maria DB
+    echo "Starting Maria DB installation" >> $logfile
+
+    cat << 'EOF' > /etc/yum.repos.d/mariadb.repo
+[mariadb]
+name = MariaDB
+baseurl = http://yum.mariadb.org/10.3/rhel8-amd64
+module_hotfixes=1
+gpgkey=https://yum.mariadb.org/RPM-GPG-KEY-MariaDB
+gpgcheck=1
+EOF
+
+    echo "Started MariaDB installation" >> $logfile
+    sudo yum install MariaDB-server -y >> $logfile
+    sudo systemctl start mariadb
+    sudo systemctl enable mariadb
+    sudo systemctl status mariadb -l >> $logfile
+
+    ## Set the password for MariaDB
+    mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '${app_center_db_pwd}';"
+
+    ## Verifing the Application Center Package avilability in the custom image.
+    if (( $(ls -ltr /opt/IBM/lsf_app_center_cloud_packages/ | grep "pac" | wc -l) > 0))
+    then
+        echo "Application center installation started from here." >> $logfile
+        ## Extracting the Application center packages.
+        cd /opt/IBM/lsf_app_center_cloud_packages
+        pac_url=$(ls /opt/IBM/lsf_app_center_cloud_packages/ | grep "pac")
+        echo "Application Center Package is available !!" >> $logfile
+        tar -xvf ${pac_url##*/}
+        pac_folder=$(echo ${pac_url##*/} | sed 's/.tar.Z//g')
+        cd ${pac_folder}
+
+        ## Set LSF profile configuration location
+        sed -i 's/#\ \.\ $LSF_ENVDIR\/profile\.lsf/. \/opt\/ibm\/lsf\/conf\/profile\.lsf/g' pacinstall.sh
+        sed -i 's/# export PAC_ADMINS=\"user1 user2\"/export PAC_ADMINS=\"lsfadmin\"/g' pacinstall.sh
+
+        ## Run installation and below steps as a Root user.
+        echo "Started with Application Center installation with pacinstall.sh file " >> $logfile
+        MYSQL_ROOT_PASSWORD=${app_center_db_pwd} sudo -E ./pacinstall.sh -s -y >> $logfile
+        sleep 10
+
+        ### Setup environment
+        echo '. /opt/ibm/lsfsuite/ext/profile.platform' >> ~/.bashrc
+        echo 'export GUI_VERSION=3.0' >> ~/.bashrc
+        echo 'export LANG=en_US.UTF-8' >> ~/.bashrc
+        echo 'export LANGUAGE=en_US.UTF-8' >> ~/.bashrc
+        echo 'export LC_ALL=en_US.UTF-8' >> ~/.bashrc
+        echo 'alias pacrestart="lsadmin resrestart -f all; sleep 5; pmcadmin stop; sleep 5; perfadmin stop all; sleep 5; perfadmin start all; sleep 5;  pmcadmin start; pmcadmin list"' >> ~/.bashrc
+        source ~/.bashrc
+        sudo -E /opt/ibm/lsfsuite/ext/gui/3.0/bin/pmcsetrc.sh >> $logfile
+        sudo -E /opt/ibm/lsfsuite/ext/perf/1.2/bin/perfsetrc.sh >> $logfile
+        cp /opt/ibm/lsfsuite/ext/perf/conf/datasource.xml /opt/ibm/lsfsuite/ext/gui/conf/datasource.xml
+
+        ## Use the PAC entitlement
+        echo "Creating Entitlement Licence file" >> $logfile
+        cp /opt/ibm/lsf/conf/pac.entitlement /opt/ibm/lsfsuite/ext/gui/conf/pac.entitlement
+
+        ## change the home path to the shared dir
+        sed -i 's/\/home/\/mnt\/data/g' $GUI_CONFDIR/Repository.xml
+        sleep 5
+        source ~/.bashrc
+
+        ## By default https enabled. Now disbling the https for API calls.
+        pmcadmin https disable
+
+        ## Restarting all the services
+        echo "restarting lsadmin and pmcadmin users" >> $logfile
+        lsadmin resrestart -f all; sleep 5; pmcadmin stop; sleep 5; perfadmin stop all; sleep 5; perfadmin start all; sleep 5;  pmcadmin start; pmcadmin list >> $logfile
+        sleep 10
+        # rm -rf ${pac_url##*/}
+    else
+        echo "--------------------------------------------" >> $logfile
+        echo "Application center package not found !!" >> $logfile
+        echo "--------------------------------------------" >> $logfile
+    fi
+
+    sleep 5
+
+    if (( $(rpm -qa | grep lsf-appcenter | wc -l) > 0 ))
+    then
+        echo "--------------------------------------------" >> $logfile
+        echo "Application Center Installed Successfully !!" >> $logfile
+        echo "--------------------------------------------" >> $logfile
+    else
+        echo "--------------------------------------------" >> $logfile
+        echo "Application center Installation Failed !!! " >> $logfile
+        echo "--------------------------------------------" >> $logfile
+    fi
+
+else
+    echo "--------------------------------------------" >> $logfile
+	  echo 'Application center installation skipped !!' >> $logfile
+    echo "--------------------------------------------" >> $logfile
+fi
+
 echo END `date '+%Y-%m-%d %H:%M:%S'` >> $logfile

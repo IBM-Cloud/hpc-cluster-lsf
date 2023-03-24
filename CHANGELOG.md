@@ -1,5 +1,14 @@
 # **CHANGELOG**
 
+## **2.1.0**
+### ENHANCEMENTS
+- Support Application center for LSF.
+- Support Entitlement check for LSF license validation.
+- Support custom images.
+
+### **CHANGES**
+- Updated login node and nfs storage node to use RHEL 8.6 stock image instead of CentOS 7.6 stock image.
+
 ## **2.0.5**
 ### **CHANGES**
 - Refresh Spectrum LSF and Scale default images.
