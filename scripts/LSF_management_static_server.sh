@@ -29,6 +29,11 @@ hostnamectl set-hostname ${ManagementHostName}
 networkIPrange=$(echo ${privateIP}|cut -f1-3 -d .)
 host_prefix=$(hostname|cut -f1-4 -d -)
 
+## Removing Unused repos.
+[ -f /etc/yum.repos.d/intel-hpc-platform.repo ] && sudo rm -rf /etc/yum.repos.d/intel-hpc-platform.repo
+[ -f /etc/yum.repos.d/docker-ce.repo ] && sudo rm -rf /etc/yum.repos.d/docker-ce.repo
+[ -f /etc/yum.repos.d/yum.repos.intel.com_oneapi.repo ] && sudo rm -rf /etc/yum.repos.d/yum.repos.intel.com_oneapi.repo
+
 # Change the MTU setting as this is required for setting mtu as 9000 for communication to happen between clusters
 echo "MTU=9000" >> "/etc/sysconfig/network-scripts/ifcfg-eth0"
 systemctl restart NetworkManager
@@ -398,6 +403,8 @@ EOF
         echo "--------------------------------------------" >> $logfile
         echo "Application Center Installed Successfully !!" >> $logfile
         echo "--------------------------------------------" >> $logfile
+        ## Removing MariaDB repo after installation.
+        [ -f /etc/yum.repos.d/mariadb.repo ] && sudo rm -rf /etc/yum.repos.d/mariadb.repo
     else
         echo "--------------------------------------------" >> $logfile
         echo "Application center Installation Failed !!! " >> $logfile
