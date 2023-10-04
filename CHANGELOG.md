@@ -1,5 +1,9 @@
 # **CHANGELOG**
 
+## **2.1.1**
+### **BUG FIXES**
+- Fixed bug related to Application Center MariaDB installation.
+
 ## **2.1.0**
 ### ENHANCEMENTS
 - Support Application center for LSF.
