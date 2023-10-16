@@ -1,5 +1,10 @@
 # **CHANGELOG**
 
+## **2.1.2**
+### **BUG FIXES**
+- Fixed bug related to dynamic host creation due to LSF daemon restart.
+- Fixed bug related to support management candidate node to act as master in case of management node failure.  
+
 ## **2.1.1**
 ### **BUG FIXES**
 - Fixed bug related to Application Center MariaDB installation.
