@@ -34,6 +34,12 @@ host_prefix=$(hostname|cut -f1-4 -d -)
 [ -f /etc/yum.repos.d/docker-ce.repo ] && sudo rm -rf /etc/yum.repos.d/docker-ce.repo
 [ -f /etc/yum.repos.d/yum.repos.intel.com_oneapi.repo ] && sudo rm -rf /etc/yum.repos.d/yum.repos.intel.com_oneapi.repo
 
+# Temporary fix for Dynamic Server creation
+python3 -m pip install ibm-vpc==0.10.0
+python3 -m pip install ibm-cloud-networking-services ibm-cloud-sdk-core selinux
+chmod 755 -R /usr/local/lib/python3.8
+chmod 755 -R /usr/local/lib64/python3.8
+
 # Change the MTU setting as this is required for setting mtu as 9000 for communication to happen between clusters
 echo "MTU=9000" >> "/etc/sysconfig/network-scripts/ifcfg-eth0"
 systemctl restart NetworkManager
@@ -118,7 +124,7 @@ grep -rli 'lsfservers' $LSF_CONF/*|xargs sed -i "s/lsfservers/${ManagementHostNa
 
 #Add management candidate host into lsf cluster
 ManagementHostNames=`echo "${management_host_ips//./-}" | sed -e "s/^/${vmPrefix}-/g" | sed -e "s/ / ${vmPrefix}-/g"`
-sed -i "s/LSF_MANAGEMENT_HOST_LIST=.*/LSF_MANAGEMENT_HOST_LIST=\"${ManagementHostNames}\"/g" $LSF_CONF_FILE
+sed -i "s/LSF_MASTER_LIST=.*/LSF_MASTER_LIST=\"${ManagementHostNames}\"/g" $LSF_CONF_FILE
 sed -i "s/EGO_MANAGEMENT_HOST_LIST=.*/EGO_MANAGEMENT_HOST_LIST=\"${ManagementHostNames}\"/g" $LSF_EGO_CONF_FILE
 for ManagementCandidateHostName in ${ManagementHostNames}; do
   if [ "${ManagementCandidateHostName}" != "${ManagementHostName}" ]; then
