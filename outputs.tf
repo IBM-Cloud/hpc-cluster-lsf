@@ -29,5 +29,5 @@ output "spectrum_scale_storage_ssh_command" {
 }
 
 output "application_center" {
-  value = var.enable_app_center ? "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -L 8080:localhost:8080 -J root@${ibm_is_floating_ip.login_fip.address} lsfadmin@${ibm_is_instance.management_host[0].primary_network_interface[0].primary_ip.0.address}": null
+  value = var.enable_app_center ? "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -L 8443:localhost:8443 -J root@${ibm_is_floating_ip.login_fip.address} lsfadmin@${ibm_is_instance.management_host[0].primary_network_interface[0].primary_ip.0.address}": null
 }

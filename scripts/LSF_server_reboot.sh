@@ -11,6 +11,7 @@ cat > /root/.lsfstartup.sh  <<EOF
 #!/usr/bin/bash
 
 is_dir_mounted=\$( cat /etc/mtab | grep  -w "/mnt/$nfs_mount_dir" | awk '{print \$3}' )
+enable_app_center=${enable_app_center}
 
 if [ -z \$is_dir_mounted ]
 then
@@ -37,6 +38,14 @@ source $LSF_TOP/conf/profile.lsf
 is_lsf_running=\$(lsf_daemons status | grep running | wc -l | awk '{print \$1}')
 if [ \$is_lsf_running -eq 0 ]; then
   lsf_daemons start &
+fi
+
+source /opt/ibm/lsfsuite/ext/profile.platform
+app_center_status=\$(pmcadmin list | grep WEBGUI | awk '{print \$2}')
+if [ "\$enable_app_center" = "true" ] && [ "\$app_center_status" = 'STOPPED' ]; then
+  perfadmin start all
+  sleep 5
+  pmcadmin start
 fi
 EOF
 
