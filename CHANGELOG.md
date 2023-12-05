@@ -1,9 +1,21 @@
 # **CHANGELOG**
 
+## **2.2.0**
+### ENHANCEMENTS
+- LSF Cluster ID can be keyed in by users before the cluster deployment.
+- LSF version is updated from 10.1.0.13 to 10.1.0.14.
+- Spectrum Scale version is updated from 5.1.5.1 to 5.1.9.0.
+- Application Center version is updated from 10.2.0.13 to 10.2.0.14 and enabled HTTPS.
+- Updated the OS to RHEL 8.8 stock image.
+
+### **BUG FIXES**
+- Fixed passwordless authentication.
+- Updated LSF Tunables for better performance.
+
 ## **2.1.2**
 ### **BUG FIXES**
 - Fixed bug related to dynamic host creation due to LSF daemon restart.
-- Fixed bug related to support management candidate node to act as master in case of management node failure.  
+- Fixed bug related to support mangement candidate node to act as master in case of management node failure.  
 
 ## **2.1.1**
 ### **BUG FIXES**

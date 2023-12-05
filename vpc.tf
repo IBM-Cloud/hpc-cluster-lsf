@@ -117,6 +117,7 @@ data "template_file" "storage_user_data" {
 data "template_file" "management_host_user_data" {
   template = local.management_host_template_file
   vars = {
+    cluster_name                  = var.cluster_id
     vpc_apikey_value              = var.api_key
     resource_records_apikey_value = var.api_key
     image_id                      = local.image_mapping_entry_found? local.new_image_id :data.ibm_is_image.image[0].id
@@ -155,6 +156,7 @@ data "template_file" "worker_user_data" {
     temp_public_key               = var.spectrum_scale_enabled == true ? local.vsi_login_temp_public_key : "" # Public ssh for schematics will be updated only when spectrum scale is set as true
     scale_mount_point             = var.scale_compute_cluster_filesystem_mountpoint
     spectrum_scale                = var.spectrum_scale_enabled
+    cluster_name                  = var.cluster_id
   }
 }
 
@@ -331,7 +333,7 @@ data "ibm_is_instance_profile" "login" {
 }
 
 locals {
-  stock_image_name = "ibm-redhat-8-6-minimal-amd64-3"
+  stock_image_name = "ibm-redhat-8-8-minimal-amd64-2"
 }
 
 data "ibm_is_image" "stock_image" {
@@ -727,7 +729,7 @@ locals {
   tf_data_path              =  "/tmp/.schematics/IBM/tf_data_path"
   tf_input_json_root_path   = null
   tf_input_json_file_name   = null
-  scale_version             = "5.1.5.1" # This is the scale version that is installed on the custom images
+  scale_version             = "5.1.9.0" # This is the scale version that is installed on the custom images
   cloud_platform            = "IBMCloud"
   scale_infra_repo_clone_path = "/tmp/.schematics/IBM/ibm-spectrumscale-cloud-deploy"
   storage_vsis_1A_by_ip = ibm_is_instance.spectrum_scale_storage[*].primary_network_interface[0].primary_ip.0.address

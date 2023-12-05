@@ -60,9 +60,19 @@ variable "zone" {
   description = "IBM Cloud zone name within the selected region where the Spectrum LSF cluster should be deployed. To get a full list of zones within a region, see [Get zones by using the CLI](https://test.cloud.ibm.com/docs/vpc?topic=vpc-creating-a-vpc-in-a-different-region&interface=cli#get-zones-using-the-cli)."
 }
 
+variable "cluster_id" {
+  type        = string
+  default     = "HPCCluster"
+  description = "Unique ID of the cluster used by LSF for configuration of resources. This can be up to 39 alphanumeric characters including the underscore (_), the hyphen (-), and the period (.) characters. Other special characters and spaces are not allowed. Do not use the name of any host or user as the name of your cluster. You cannot change the cluster ID after deployment."
+  validation {
+    condition     = 0 < length(var.cluster_id) && length(var.cluster_id) < 40 && can(regex("^[a-zA-Z0-9_.-]+$", var.cluster_id))
+    error_message = "The ID can be up to 39 alphanumeric characters including the underscore (_), the hyphen (-), and the period (.) characters. Other special characters and spaces are not allowed."
+  }
+}
+
 variable "image_name" {
   type        = string
-  default     = "hpcc-lsf10-scale5151-rhel84-2-1"
+  default     = "hpcc-lsf10-scale5190-rhel88-2-2"
   description = "Name of the custom image that you want to use to create virtual server instances in your IBM Cloud account to deploy the IBM Spectrum LSF cluster. By default, the automation uses a base image with additional software packages documented [here](https://cloud.ibm.com/docs/ibm-spectrum-lsf). If you would like to include your application-specific binary files, follow the instructions in [Planning for custom images](https://cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the IBM Spectrum LSF cluster through this offering."
 }
 
@@ -253,7 +263,7 @@ variable "spectrum_scale_enabled"{
 
 variable "scale_storage_image_name" {
   type        = string
-  default     = "hpcc-scale5151-rhel84"
+  default     = "hpcc-scale5190-rhel88"
   description = "Name of the custom image that you would like to use to create virtual machines in your IBM Cloud account to deploy the Spectrum Scale storage cluster. By default, the automation uses a base image plus the Spectrum Scale software and any other software packages that it requires. If you would like, you can follow the instructions for [Planning for custom images](https://test.cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the Spectrum Scale storage cluster through this offering."
 }
 
@@ -347,7 +357,7 @@ variable "TF_WAIT_DURATION" {
 variable "enable_app_center" {
   type = bool
   default = false
-  description = "Set to true to install and enable use of the IBM Spectrum LSF Application Center GUI (default: false). [System requirements](https://www.ibm.com/docs/en/slac/10.2.0?topic=requirements-system-102-fix-pack-13) for IBM Spectrum LSF Application Center Version 10.2 Fix Pack 13."
+  description = "Set to true to install and enable use of the IBM Spectrum LSF Application Center GUI (default: false). [System requirements](https://www.ibm.com/docs/en/slac/10.2.0?topic=requirements-system-102-fix-pack-14) for IBM Spectrum LSF Application Center Version 10.2 Fix Pack 14."
 }
 
 variable "app_center_gui_pwd" { 
