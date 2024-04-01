@@ -10,15 +10,15 @@ variable "scale_mount_point" {}
 
 
 locals {
-  cloud_playbook_path = format("%s/%s", "${path.module}/ansible_playbook/", "add_permission.yml")
-  inventory_file_path = format("%s", "${path.module}/ansible_playbook/inventory_file")
-  compute_instances_ip = join(",",jsondecode(var.compute_instances_by_ip))
-  vsi_ip = format("%s\n%s", "[add_permission]", replace(local.compute_instances_ip, ",", "\n" ))
+  cloud_playbook_path  = format("%s/%s", "${path.module}/ansible_playbook/", "add_permission.yml")
+  inventory_file_path  = format("%s", "${path.module}/ansible_playbook/inventory_file")
+  compute_instances_ip = join(",", jsondecode(var.compute_instances_by_ip))
+  vsi_ip               = format("%s\n%s", "[add_permission]", replace(local.compute_instances_ip, ",", "\n"))
 }
 
 resource "local_file" "inventory" {
-    content     = local.vsi_ip
-    filename = "${path.module}/ansible_playbook/inventory_file"
+  content  = local.vsi_ip
+  filename = "${path.module}/ansible_playbook/inventory_file"
 }
 
 
@@ -40,8 +40,8 @@ resource "null_resource" "call_add_permission_mountpoint_playbook" {
       extra_vars = {
         "ansible_python_interpreter" : "auto",
         "scale_cluster_definition_path" : local.inventory_file_path
-        "mount_point": var.scale_mount_point
-        "user_name": "lsfadmin"
+        "mount_point" : var.scale_mount_point
+        "user_name" : "lsfadmin"
       }
     }
     ansible_ssh_settings {

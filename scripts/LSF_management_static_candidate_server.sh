@@ -8,12 +8,18 @@ logfile="/tmp/user_data.log"
 echo "START $(date '+%Y-%m-%d %H:%M:%S')" >> "$logfile"
 
 # Local variable declaration
-nfs_server=${storage_ips}
-nfs_mount_dir="data"
-vmPrefix="icgen2host"
-management_host_ips=($management_host_ips)
-lsfmanagement_host=${management_host_ips[0]}
-lsfmanagement_host=${vmPrefix}-${lsfmanagement_host//./-}
+nfs_server_with_mount_path=${mount_path}
+enable_ldap="${enable_ldap}"
+ldap_server_ip="${ldap_server_ip}"
+base_dn="${ldap_basedns}"
+HostIP=$(hostname -I | awk '{print $1}')
+HostName=$(hostname)
+ManagementHostNames=""
+for (( i=1; i<=management_node_count; i++ ))
+do
+  ManagementHostNames+=" ${cluster_prefix}-mgmt-$i"
+done
+echo $ManagementHostNames >> $logfile
 
 # Setup LSF environment variables
 LSF_TOP="/opt/ibm/lsf"
@@ -23,66 +29,86 @@ LSF_TOP_VERSION="$LSF_TOP/10.1"
 . $LSF_TOP/conf/profile.lsf
 env >> $logfile
 
-# Setup Hostname
-privateIP=$(ip addr show eth0 | awk '$1 == "inet" {gsub(/\/.*$/, "", $2); print $2}')
-ManagementHostName=${vmPrefix}-${privateIP//./-}
-hostnamectl set-hostname ${ManagementHostName}
-
-# Setting up Host file
-python3 -c "import ipaddress; print('\n'.join([str(ip) + ' ${vmPrefix}-' + str(ip).replace('.', '-') for ip in ipaddress.IPv4Network('${rc_cidr_block}')]))" >> $LSF_HOSTS_FILE
-cat $LSF_HOSTS_FILE >> /etc/hosts
-
 # Setup Network configurations
-echo "MTU=9000" >> "/etc/sysconfig/network-scripts/ifcfg-eth0"
+echo "MTU=9000" >> "/etc/sysconfig/network-scripts/ifcfg-${network_interface}"
+echo "DOMAIN=\"${dns_domain}\"" >> "/etc/sysconfig/network-scripts/ifcfg-${network_interface}"
 gateway_ip=$(ip route | grep default | awk '{print $3}' | head -n 1)
 echo "${rc_cidr_block} via $gateway_ip dev eth0 metric 0 mtu 9000" >> /etc/sysconfig/network-scripts/route-eth0
 systemctl restart NetworkManager
 
-# Update management_host name based on with nfs share or not
-if ([ -n "${nfs_server}" ] && [ -n "${nfs_mount_dir}" ]); then
-  echo "NFS server and share found, start mount nfs share!" >> $logfile
-  # Mount the nfs share
-  showmount -e $nfs_server >> $logfile
-  mkdir -p /mnt/$nfs_mount_dir >> $logfile
-  mount -t nfs $nfs_server:/$nfs_mount_dir /mnt/$nfs_mount_dir >> $logfile
-  df -h /mnt/$nfs_mount_dir >> $logfile
-  # Make auto mount when server is down
-  echo "$nfs_server:/$nfs_mount_dir /mnt/$nfs_mount_dir nfs rw,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,_netdev 0 0 " >> /etc/fstab
-  echo "Mount nfs share done!" >> $logfile
-  while [ ! -d /mnt/$nfs_mount_dir/lsf_$lsfmanagement_host ]; do sleep 1s; done
-  if [ -d /mnt/$nfs_mount_dir/lsf_$lsfmanagement_host ]; then
-    echo "lsf directory already exits in nfs share" >> $logfile
-    for subdir in conf work log das_staging_area; do
-      lsf_link=$(ls -la /opt/ibm/lsf/$subdir | grep "\->")
-      if [ -n "${lsf_link}" ]; then 
-        echo "conf linked to the share already" >>  $logfile
-      else
-        echo "link the conf to share location" >> $logfile
-        mv /opt/ibm/lsf/${subdir} /opt/ibm/lsf/${subdir}_org
-        ln -fs /mnt/$nfs_mount_dir/lsf_$lsfmanagement_host/$subdir /opt/ibm/lsf/$subdir
-      fi
-    done
+# Setup LSF
+echo "Setting LSF configuration is completed." >> $logfile
+echo "Setting LSF share" >> $logfile
+# Setup file share
+if [ -n "${nfs_server_with_mount_path}" ]; then
+  echo "File share ${nfs_server_with_mount_path} found" >> $logfile
+  nfs_client_mount_path="/mnt/lsf"
+  rm -rf "${nfs_client_mount_path}"
+  mkdir -p "${nfs_client_mount_path}"
+  # Mount LSF TOP
+  mount -t nfs4 -o sec=sys,vers=4.1 "$nfs_server_with_mount_path" "$nfs_client_mount_path" >> $logfile
+  # Verify mount
+  if mount | grep "$nfs_client_mount_path"; then
+    echo "Mount found" >> $logfile
   else
-    echo "nfs filesystem not mounted, no existing lsf found, can not continue." >> $logfile
+    echo "No mount found, exiting!" >> $logfile
     exit 1
-  fi  
-  # Passwordless SSH authentication
-  mkdir -p /home/lsfadmin/.ssh
-  cp /mnt/$nfs_mount_dir/ssh/id_rsa /home/lsfadmin/.ssh/
-  cp /mnt/$nfs_mount_dir/ssh/id_rsa /root/.ssh/id_rsa
-  echo "StrictHostKeyChecking no" >> /root/.ssh/config
-  cat /mnt/$nfs_mount_dir/ssh/id_rsa.pub >> /root/.ssh/authorized_keys
-  cp /mnt/$nfs_mount_dir/ssh/authorized_keys /home/lsfadmin/.ssh/authorized_keys
-  if [ ${spectrum_scale} == true ]; then
-      echo "${temp_public_key}" >> /root/.ssh/authorized_keys
   fi
-  chmod 600 /home/lsfadmin/.ssh/authorized_keys
-  chmod 700 /home/lsfadmin/.ssh
-  chown -R lsfadmin:lsfadmin /home/lsfadmin/.ssh
-  echo "StrictHostKeyChecking no" >> /home/lsfadmin/.ssh/config
+  # Update mount to fstab for automount
+  echo "$nfs_server_with_mount_path $nfs_client_mount_path nfs rw,sec=sys,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,_netdev 0 0 " >> /etc/fstab
+  for dir in conf work das_staging_area; do
+    rm -rf "/opt/ibm/lsf/$dir"
+    ln -fs "${nfs_client_mount_path}/$dir" "/opt/ibm/lsf"
+    chown -R lsfadmin:root "/opt/ibm/lsf"
+  done
 else
-  echo "No NFS server and share found!" >> $logfile
+  echo "No mount point value found, exiting!" >> $logfile
+  exit 1
 fi
+echo "Setting LSF share is completed." >> $logfile
+
+# Setup Custom file shares
+echo "Setting custom file shares." >> $logfile
+# Setup file share
+if [ -n "${custom_file_shares}" ]; then
+  echo "Custom file share ${custom_file_shares} found" >> $logfile
+  file_share_array=(${custom_file_shares})
+  mount_path_array=(${custom_mount_paths})
+  length=${#file_share_array[@]}
+  for (( i=0; i<length; i++ ))
+  do
+    rm -rf "${mount_path_array[$i]}"
+    mkdir -p "${mount_path_array[$i]}"
+    # Mount LSF TOP
+    mount -t nfs4 -o sec=sys,vers=4.1 "${file_share_array[$i]}" "${mount_path_array[$i]}" >> $logfile
+    # Verify mount
+    if mount | grep "${file_share_array[$i]}"; then
+      echo "Mount found" >> $logfile
+    else
+      echo "No mount found" >> $logfile
+    fi
+    # Update permission to 777 for all users to access
+    chmod 777 ${mount_path_array[$i]}
+    # Update mount to fstab for automount
+    echo "${file_share_array[$i]} ${mount_path_array[$i]} nfs rw,sec=sys,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,_netdev 0 0 " >> /etc/fstab
+  done
+fi
+echo "Setting custom file shares is completed." >> $logfile
+
+# Passwordless SSH authentication
+sudo chage -I -1 -m 0 -M 99999 -E -1 -W 14 lsfadmin
+cp "${nfs_client_mount_path}/ssh/id_rsa" /root/.ssh/id_rsa
+cat "${nfs_client_mount_path}/ssh/id_rsa.pub" >> /root/.ssh/authorized_keys
+mkdir -p /home/lsfadmin/.ssh
+cp "${nfs_client_mount_path}/ssh/id_rsa" /home/lsfadmin/.ssh/id_rsa
+cp "${nfs_client_mount_path}/ssh/authorized_keys" /home/lsfadmin/.ssh/authorized_keys
+echo "${temp_public_key}" >> /root/.ssh/authorized_keys
+echo "StrictHostKeyChecking no" >> /root/.ssh/config
+echo "StrictHostKeyChecking no" >> /home/lsfadmin/.ssh/config
+chmod 600 /home/lsfadmin/.ssh/id_rsa
+chmod 600 /home/lsfadmin/.ssh/authorized_keys
+chmod 700 /home/lsfadmin/.ssh
+chown -R lsfadmin:lsfadmin /home/lsfadmin/.ssh
 
 # Update LSF Tunables
 LSF_TUNABLES="/etc/sysctl.conf"
@@ -107,6 +133,32 @@ echo "source ${LSF_CONF}/profile.lsf" >> /home/lsfadmin/.bashrc
 echo "source ${LSF_CONF}/profile.lsf" >> /root/.bashrc
 source ~/.bashrc
 
+#Setup password less SSH
+while [ ! -f  "$LSF_HOSTS_FILE" ]; do
+  echo "Waiting for cluster configuration created by management node to be shared." >> $logfile
+  sleep 5s
+done
+
+# Update the entry  to LSF_HOSTS_FILE
+sed -i "s/^$HostIP .*/$HostIP $HostName/g" $LSF_HOSTS_FILE
+for hostname in $ManagementHostNames; do
+  while ! grep "$hostname" "$LSF_HOSTS_FILE"; do
+    echo "Waiting for $hostname to be added to LSF host file" >> $logfile
+    sleep 5
+  done
+done
+cat $LSF_HOSTS_FILE >> /etc/hosts
+
+# Create lsf.sudoers file to support single lsfstartup and lsfrestart command from management node
+cat <<EOT > "/etc/lsf.sudoers"
+LSF_STARTUP_USERS="lsfadmin"
+LSF_STARTUP_PATH=$LSF_TOP_VERSION/linux3.10-glibc2.17-x86_64/etc/
+EOT
+chmod 600 /etc/lsf.sudoers
+ls -l /etc/lsf.sudoers
+sudo /opt/ibm/lsf/10.1/install/hostsetup --top="/opt/ibm/lsf/" --setuid
+echo "Added LSF administrators to start LSF daemons" >> $logfile
+
 # Startup lsf daemons
 lsf_daemons start &
 sleep 5
@@ -114,5 +166,85 @@ lsf_daemons status >> "$logfile"
 
 # TODO: Understand how lsf should work after reboot, need better cron job
 (crontab -l 2>/dev/null; echo "@reboot sleep 30 && source ~/.bashrc && lsf_daemons start && lsf_daemons status") | crontab -
+
+# Setting up the LDAP configuration
+if [ "$enable_ldap" = "true" ]; then
+
+    # Detect RHEL version
+    rhel_version=$(grep -oE 'release [0-9]+' /etc/redhat-release | awk '{print $2}')
+
+    if [ "$rhel_version" == "8" ]; then
+        echo "Detected RHEL 8. Proceeding with LDAP client configuration...." >> "$logfile"
+
+        # Allow Password authentication
+        sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+        systemctl restart sshd
+
+        # Configure LDAP authentication
+        authconfig --enableldap --enableldapauth \
+                    --ldapserver=ldap://${ldap_server_ip} \
+                    --ldapbasedn="dc=${base_dn%%.*},dc=${base_dn#*.}" \
+                    --enablemkhomedir --update
+
+        # Check the exit status of the authconfig command
+        if [ $? -eq 0 ]; then
+            echo "LDAP Authentication enabled successfully." >> "$logfile"
+        else
+            echo "Failed to enable LDAP and LDAP Authentication." >> "$logfile"
+            exit 1
+        fi
+
+        # Update LDAP Client configurations in nsswitch.conf
+        sed -i -e 's/^passwd:.*$/passwd: files ldap/' \
+               -e 's/^shadow:.*$/shadow: files ldap/' \
+               -e 's/^group:.*$/group: files ldap/' /etc/nsswitch.conf
+
+        # Update PAM configuration files
+        sed -i -e '/^auth/d' /etc/pam.d/password-auth
+        sed -i -e '/^auth/d' /etc/pam.d/system-auth
+
+        auth_line="\nauth        required      pam_env.so\n\
+auth        sufficient    pam_unix.so nullok try_first_pass\n\
+auth        requisite     pam_succeed_if.so uid >= 1000 quiet_success\n\
+auth        sufficient    pam_ldap.so use_first_pass\n\
+auth        required      pam_deny.so"
+
+        echo -e "$auth_line" | tee -a /etc/pam.d/password-auth /etc/pam.d/system-auth
+
+        # Copy 'password-auth' settings to 'sshd'
+        cat /etc/pam.d/password-auth > /etc/pam.d/sshd
+
+        # Configure nslcd
+        cat <<EOF > /etc/nslcd.conf
+uid nslcd
+gid ldap
+uri ldap://${ldap_server_ip}/
+base dc=${base_dn%%.*},dc=${base_dn#*.}
+EOF
+
+        # Restart nslcd and nscd service
+        systemctl restart nslcd
+        systemctl restart nscd
+
+        # Enable nslcd and nscd service
+        systemctl enable nslcd
+        systemctl enable nscd
+
+        # Validate the LDAP configuration
+        if ldapsearch -x -H ldap://${ldap_server_ip}/ -b "dc=${base_dn%%.*},dc=${base_dn#*.}" > /dev/null; then
+            echo "LDAP configuration completed successfully !!" >> "$logfile"
+        else
+            echo "LDAP configuration failed !!" >> "$logfile"
+            exit 1
+        fi
+
+        # Make LSF commands available for every user.
+        echo ". ${LSF_CONF}/profile.lsf" >> /etc/bashrc
+        source /etc/bashrc
+    else
+        echo "This script is designed for RHEL 8. Detected RHEL version: $rhel_version. Exiting." >> "$logfile"
+        exit 1
+    fi
+fi
 
 echo "END $(date '+%Y-%m-%d %H:%M:%S')" >> $logfile

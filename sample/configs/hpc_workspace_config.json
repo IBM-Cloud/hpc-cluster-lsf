@@ -1,7 +1,7 @@
 {
   "name": "Sample Schematic CLI workspace",
   "type": [
-    "terraform_v1.1"
+    "terraform_v1.5"
   ],
   "location": "us-east",
   "description": "HPC Cluster schematic workspace using CLI",
@@ -13,7 +13,7 @@
   "template_data": [
     {
       "folder": ".",
-      "type": "terraform_v1.1",
+      "type": "terraform_v1.5",
       "env_values":[
         {
           "TF_CLI_ARGS_apply": "-parallelism=250"
@@ -88,11 +88,18 @@
         },
         {
           "name": "image_name",
-          "value": "hpcc-lsf10-scale5190-rhel88-2-2",
+          "value": "hpcc-lsf10-scale5190-rhel88-3-0",
           "type": "string",
           "secure": false,
           "description": "Name of the custom image that you want to use to create virtual server instances in your IBM Cloud account to deploy the IBM Spectrum LSF cluster. By default, the automation uses a base image with additional software packages documented [here](https://cloud.ibm.com/docs/ibm-spectrum-lsf). If you would like to include your application-specific binary files, follow the instructions in [Planning for custom images](https://cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the IBM Spectrum LSF cluster through this offering."
         },
+        {
+          "name": "compute_image_name",
+          "value": "hpcaas-lsf10-rhel88-compute-v2",
+          "type": "string",
+          "secure": false,
+          "description": "Name of the custom image that you want to use to create virtual server instances in your IBM Cloud account to deploy the IBM Cloud HPC cluster dynamic compute nodes. By default, the solution uses a RHEL 8-6 OS image with additional software packages mentioned [here](https://cloud.ibm.com/docs/hpc-spectrum-LSF#create-custom-image). The solution also offers, Ubuntu 22-04 OS base image (hpcaas-lsf10-ubuntu2204-compute-v1). If you would like to include your application-specific binary files, follow the instructions in [ Planning for custom images ](https://cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the IBM Cloud HPC cluster through this offering."
+        },        
         {
           "name": "management_node_instance_type",
           "value": "bx2-4x16",
@@ -136,20 +143,6 @@
           "description": "The maximum number of worker nodes that can be deployed in the Spectrum LSF cluster. In order to use the [Resource Connector](https://www.ibm.com/docs/en/spectrum-lsf/10.1.0?topic=lsf-resource-connnector) feature to dynamically create and delete worker nodes based on workload demand, the value selected for this parameter must be larger than worker_node_min_count. If you plan to deploy only static worker nodes in the LSF cluster, e.g., when using Spectrum Scale storage, the value for this parameter should be equal to worker_node_min_count. Enter a value in the range 1 - 500."
         },
         {
-          "name": "volume_capacity",
-          "value": "100",
-          "type": "number",
-          "secure": false,
-          "description": "Size in GB for the block storage that would be used to build the NFS instance and would be available as a mount on Spectrum LSF management_host node. Enter a value in the range 10 - 16000."
-        },
-        {
-          "name": "volume_iops",
-          "value": "300",
-          "type": "number",
-          "secure": false,
-          "description": "Number to represent the IOPS (Input Output Per Second) configuration for block storage to be used for the NFS instance (valid only for ‘volume_profile=custom’, dependent on ‘volume_capacity’). Enter a value in the range 100 - 48000.  For possible options of IOPS, see [Custom IOPS Profile](https://cloud.ibm.com/docs/vpc?topic=vpc-block-storage-profiles&interface=ui#custom)."
-        },
-        {
           "name": "management_node_count",
           "value": "2",
           "type": "number",
@@ -162,13 +155,6 @@
           "type": "list(string)",
           "secure": false,
           "description": "Comma-separated list of IP addresses that can access the Spectrum LSF instance through an SSH or RDP interface. For security purposes, provide the public IP addresses assigned to the devices that are authorized to establish SSH or RDP connections (for example, [\"169.45.117.34\"]). To fetch the IP address of the device, use [https://ipv4.icanhazip.com/](https://ipv4.icanhazip.com/)."
-        },
-        {
-          "name": "volume_profile",
-          "value": "general-purpose",
-          "type": "string",
-          "secure": false,
-          "description": "Name of the block storage volume type to be used for NFS instance. For possible options, see [Block storage profiles](https://cloud.ibm.com/docs/vpc?topic=vpc-block-storage-profiles&interface=ui)."
         },
         {
           "name": "hyperthreading_enabled",
@@ -219,11 +205,18 @@
         },
         {
           "name": "TF_VERSION",
-          "value": "0.14",
+          "value": "1.5",
           "type": "string",
           "secure": false,
           "description": "The version of the Terraform engine that's used in the Schematics workspace."
         },
+        {
+          "name": "TF_PARALLELISM",
+          "value": "250",
+          "type": "string",
+          "secure": false,
+          "description": "Parallelism/ concurrent operations limit. Valid values are between 1 and 256, both inclusive. [Learn more](https://www.terraform.io/docs/internals/graph.html#walking-the-graph)."
+        },        
         {
           "name": "spectrum_scale_enabled",
           "value": "false",
@@ -326,6 +319,170 @@
           "type": "string",
           "secure": true,
           "description": "Password for MariaDB. Note: Password should be at least 8 characters, must have one number, one lowercase letter, one uppercase letter, and at least one special character."
+        },
+        {
+          "name": "enable_customer_managed_encryption",
+          "value": "true",
+          "type": "bool",
+          "secure": false,
+          "description": "Setting this to true will enable customer managed encryption for boot volume and file Share. Otherwise, encryption will be Provider managed."
+        },
+        {
+          "name": "kms_instance_id",
+          "value": "",
+          "type": "string",
+          "secure": false,
+          "description": "Unique identifier of the Key Protect instance associated with the Key Management Service. While providing an existing “kms_instance_id”, it's necessary to create the required authorization policy for encryption to be completed. To create the authorisation policy, go to [Service authorizations](https://cloud.ibm.com/docs/vpc?topic=vpc-block-s2s-auth&interface=ui). The ID can be found under the details of the KMS, see [View key-protect ID](https://cloud.ibm.com/docs/key-protect?topic=key-protect-retrieve-instance-ID&interface=ui)."
+        },
+        {
+          "name": "kms_key_name",
+          "value": "",
+          "type": "string",
+          "secure": false,
+          "description": "Provide the existing KMS encryption key name that you want to use for the IBM Cloud LSF cluster. (for example kms_key_name: my-encryption-key)."
+        },
+        {
+          "name": "enable_vpc_flow_logs",
+          "value": "false",
+          "type": "bool",
+          "description": "Flag to enable VPC flow logs. If true, a flow log collector will be created."
+        },
+        {
+          "name": "create_authorization_policy_vpc_to_cos",
+          "value": "false",
+          "type": "bool",
+          "description": "Set it to true if authorization policy is required for VPC to access COS. This can be set to false if authorization policy already exists. For more information on how to create authorization policy manually, see [creating authorization policies for VPC flow log](https://cloud.ibm.com/docs/vpc?topic=vpc-ordering-flow-log-collector&interface=ui#fl-before-you-begin-ui)."
+        },
+        {
+          "name": "existing_cos_instance_guid",
+          "value": null,
+          "type": "string",
+          "description": "GUID of the COS instance to create a flow log collector."
+        },
+        {
+          "name": "existing_storage_bucket_name",
+          "value": null,
+          "type": "string",
+          "description": "Name of the COS bucket to collect VPC flow logs."
+        },
+        {
+          "name": "is_flow_log_collector_active",
+          "value": "true",
+          "type": "bool",
+          "description": "Indicates whether the collector is active. If false, this collector is created in inactive mode."
+        },
+        {
+          "name": "vpc_cidr_block",
+          "value": "[\"10.241.0.0/18\"]",
+          "type": "list(string)",
+          "secure": false,
+          "description": "Creates the address prefix for the new VPC, when the vpc_name variable is empty. The VPC requires an address prefix for each subnet in two different zones. The subnets are created with the specified CIDR blocks, enabling support for two zones within the VPC. For more information, see [Setting IP ranges](https://cloud.ibm.com/docs/vpc?topic=vpc-vpc-addressing-plan-design)."
+        },
+        {
+          "name": "vpc_cluster_private_subnets_cidr_blocks",
+          "value": "[\"10.241.0.0/20\"]",
+          "type": "list(string)",
+          "secure": false,
+          "description": "The CIDR block that's required for the creation of the compute cluster private subnet. Modify the CIDR block if it conflicts with any on-premises CIDR blocks when using a hybrid environment. Make sure to select a CIDR block size that will accommodate the maximum number of management and dynamic compute nodes that you expect to have in your cluster. Requires one CIDR block for each subnet in two different zones. For more information on CIDR block size selection, see [Choosing IP ranges for your VPC](https://cloud.ibm.com/docs/vpc?topic=vpc-choosing-ip-ranges-for-your-vpc)."
+        },
+        {
+          "name": "vpc_cluster_login_private_subnets_cidr_blocks",
+          "value": "[\"10.241.16.0/28\"]",
+          "type": "list(string)",
+          "secure": false,
+          "description": "The CIDR block that's required for the creation of the login cluster private subnet. Modify the CIDR block if it conflicts with any on-premises CIDR blocks when using a hybrid environment. Provide only one CIDR block for the creation of the login subnet. Since login subnet is used only for the creation of login virtual server instances, provide a CIDR range of /28."
+        },
+        {
+          "name": "enable_ldap",
+          "value": "false",
+          "type": "bool",
+          "description": "Set this option to true to enable LDAP for IBM Cloud HPC, with the default value set to false."
+        },
+        {
+          "name": "ldap_basedns",
+          "value": "hpcaas.com",
+          "type": "string",
+          "description": "The dns domain name is used for configuring the LDAP server. If an LDAP server is already in existence, ensure to provide the associated DNS domain name."
+        },
+        {
+          "name": "ldap_server",
+          "value": "null",
+          "type": "string",
+          "description": "Provide the IP address for the existing LDAP server. If no address is given, a new LDAP server will be created."
+        },
+        {
+          "name": "ldap_admin_password",
+          "value": "",
+          "type": "string",
+          "secure": true,
+          "description": "The LDAP administrative password should be 8 to 20 characters long, with a mix of at least three alphabetic characters, including one uppercase and one lowercase letter. It must also include two numerical digits and at least one special character from (~@_+:) are required. It is important to avoid including the username in the password for enhanced security.[This value is ignored for an existing LDAP server]."
+        },
+        {
+          "name": "ldap_user_name",
+          "value": "",
+          "type": "string",
+          "description": "Custom LDAP User for performing cluster operations. Note: Username should be between 4 to 32 characters, (any combination of lowercase and uppercase letters).[This value is ignored for an existing LDAP server]"
+        },
+        {
+          "name": "ldap_user_password",
+          "value": "",
+          "type": "string",
+          "secure": true,
+          "description": "The LDAP user password should be 8 to 20 characters long, with a mix of at least three alphabetic characters, including one uppercase and one lowercase letter. It must also include two numerical digits and at least one special character from (~@_+:) are required.It is important to avoid including the username in the password for enhanced security.[This value is ignored for an existing LDAP server]."
+        },
+        {
+          "name": "ldap_vsi_profile",
+          "value": "cx2-2x4",
+          "type": "string",
+          "description": "Profile to be used for LDAP virtual server instance."
+        },
+        {
+          "name": "ldap_vsi_osimage_name",
+          "value": "ibm-ubuntu-22-04-3-minimal-amd64-1",
+          "type": "string",
+          "description": "Image name to be used for provisioning the LDAP instances."
+        },
+        {
+          "name": "custom_file_shares",
+          "value": "[{mount_path = \"/mnt/binaries\", size = 100, iops = 2000 }, { mount_path = \"/mnt/data\", size = 100, iops = 6000 } ]",
+          "type": "list(object({mount_path = string,size = number,iops = number}))",
+          "secure": false,
+          "description": "Mount points and sizes in GB and IOPS range of file shares that can be used to customize shared file storage layout. Provide the details for up to 5 shares. Each file share size in GB supports different range of IOPS. For more information, see [file share IOPS value](https://cloud.ibm.com/docs/vpc?topic=vpc-file-storage-profiles&interface=ui)"
+        },
+        {
+          "name": "cluster_subnet_id",
+          "value": "",
+          "type": "string",
+          "secure": false,
+          "description": "Existing cluster subnet ID under the VPC, where the cluster will be provisioned."
+        },
+        {
+          "name": "login_subnet_id",
+          "value": "",
+          "type": "string",
+          "secure": false,
+          "description": "Existing Login subnet ID under the VPC, where the bastion/login will be provisioned."
+        },
+        {
+          "name": "dns_instance_id",
+          "value": "",
+          "type": "string",
+          "secure": false,
+          "description": "IBM Cloud HPC DNS service resource id."
+        },
+        {
+          "name": "dns_custom_resolver_id",
+          "value": "",
+          "type": "string",
+          "secure": false,
+          "description": "IBM Cloud DNS custom resolver id."
+        },
+        {
+          "name": "dns_domain",
+          "value": "lsf.com",
+          "type": "string",
+          "secure": false,
+          "description": "IBM Cloud DNS Services domain name to be used for the IBM Cloud LSF cluster."
         }
       ]
     }

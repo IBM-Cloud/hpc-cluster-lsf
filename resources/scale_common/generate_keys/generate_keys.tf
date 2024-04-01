@@ -45,6 +45,6 @@ output "public_key" {
 }
 
 output "private_key" {
-  value = tls_private_key.generate_ssh_key.private_key_pem
+  value     = tls_private_key.generate_ssh_key.private_key_pem
   sensitive = true
 }

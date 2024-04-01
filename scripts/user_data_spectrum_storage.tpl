@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-nfs_server=${storage_ips}
+
 temp_public_key="${temp_public_key}"
 
 if grep -q "Red Hat" /etc/os-release
