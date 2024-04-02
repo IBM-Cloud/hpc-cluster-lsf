@@ -10,16 +10,16 @@ LSF_HOSTS_FILE=$LSF_TOP/conf/hosts
 cat > /root/.lsfstartup.sh  <<EOF
 #!/usr/bin/bash
 
-is_dir_mounted=\$( cat /etc/mtab | grep  -w "/mnt/$nfs_mount_dir" | awk '{print \$3}' )
+is_dir_mounted=\$( cat /etc/mtab | grep  -w "/mnt/lsf" | awk '{print \$3}' )
 enable_app_center=${enable_app_center}
 
 if [ -z \$is_dir_mounted ]
 then
-  echo "/mnt/$nfs_mount_dir is not a mounted remote filesystem"
+  echo "/mnt/lsf is not a mounted remote filesystem"
   exit 1
 elif [[ \$is_dir_mounted != "nfs"* ]]
 then
-  echo "/mnt/$nfs_mount_dir is not a NFS mounted remote filesystem"
+  echo "/mnt/lsf is not a NFS mounted remote filesystem"
   exit 1
 fi
 
@@ -29,7 +29,7 @@ if [ -z \$count1 ]; then
   exit 1
 fi
 
-count2=\$( wc -l /etc/hosts | grep $vmPrefix | awk '{print \$1}' )
+count2=\$( wc -l /etc/hosts | grep $cluster_prefix | awk '{print \$1}' )
 if [ -z \$count2 ]; then
   cat $LSF_HOSTS_FILE >> /etc/hosts
 fi

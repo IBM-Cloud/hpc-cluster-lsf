@@ -22,10 +22,10 @@ resource "ibm_is_security_group_rule" "itself" {
   direction = var.sg_direction
   remote    = var.remote_ip_addr[0]
 
-    tcp {
-      port_min = 22
-      port_max = 22
-    }
+  tcp {
+    port_min = 22
+    port_max = 22
+  }
 }
 
 output "security_rule_id" {

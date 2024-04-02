@@ -12,16 +12,16 @@ variable "host" {}
 
 
 locals {
-  cloud_playbook_path = format("%s/%s", "${path.module}/ansible_playbook/remove_ssh", "remove_ssh.yml")
-  inventory_file_path = format("%s", "${path.module}/ansible_playbook/remove_ssh/inventory_file")
-  compute_instances_ip = join(",",jsondecode(var.compute_instances_by_ip))
-  storage_vsi_ip = join(",",jsondecode(var.storage_vsis_1A_by_ip))
-  vsi_ip = format("%s\n%s\n%s", "[ssh_remove]", replace(local.compute_instances_ip, ",", "\n" ), replace(local.storage_vsi_ip, ",", "\n" ))
+  cloud_playbook_path  = format("%s/%s", "${path.module}/ansible_playbook/remove_ssh", "remove_ssh.yml")
+  inventory_file_path  = format("%s", "${path.module}/ansible_playbook/remove_ssh/inventory_file")
+  compute_instances_ip = join(",", jsondecode(var.compute_instances_by_ip))
+  storage_vsi_ip       = join(",", jsondecode(var.storage_vsis_1A_by_ip))
+  vsi_ip               = format("%s\n%s\n%s", "[ssh_remove]", replace(local.compute_instances_ip, ",", "\n"), replace(local.storage_vsi_ip, ",", "\n"))
 }
 
 resource "local_file" "inventory" {
-    content     = local.vsi_ip
-    filename = "${path.module}/ansible_playbook/remove_ssh/inventory_file"
+  content  = local.vsi_ip
+  filename = "${path.module}/ansible_playbook/remove_ssh/inventory_file"
 }
 
 
@@ -43,7 +43,7 @@ resource "null_resource" "call_remove_ssh_playbook" {
       extra_vars = {
         "ansible_python_interpreter" : "auto",
         "scale_cluster_definition_path" : local.inventory_file_path
-        "ssh": replace(var.key_to_remove, "\n", "")
+        "ssh" : replace(var.key_to_remove, "\n", "")
       }
     }
     ansible_ssh_settings {

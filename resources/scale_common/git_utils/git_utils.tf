@@ -9,7 +9,7 @@
 variable "branch" {}
 variable "tag" { default = null }
 variable "clone_path" {}
-variable "ansible_repo" {default = "IBM/ibm-spectrum-scale-install-infra"}
+variable "ansible_repo" { default = "IBM/ibm-spectrum-scale-install-infra" }
 
 // provider to integrate with github
 terraform {

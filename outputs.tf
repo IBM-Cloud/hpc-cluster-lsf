@@ -8,8 +8,16 @@ Note: Below are the user names used to login to each nodes:
       root     = scale_storage_nodes
       Where ever we see the variable name set as management_host, that is equivalent to management. These changes are done as part of https://zenhub.ibm.com/workspaces/hpccluster-5fca9ac6798f26158474cd14/issues/workload-eng-services/hpccluster/1261
 */
-output "ssh_command" {
-  value = "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -J root@${ibm_is_floating_ip.login_fip.address} lsfadmin@${ibm_is_instance.management_host[0].primary_network_interface[0].primary_ip.0.address}"
+output "ssh_to_management_node" {
+  value = "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -J vpcuser@${module.login_fip.floating_ip_address} lsfadmin@${module.management_host[0].primary_network_interface}"
+}
+
+output "ssh_to_login_node" {
+  value = "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -J vpcuser@${module.login_fip.floating_ip_address} lsfadmin@${module.login_vsi[0].primary_network_interface}"
+}
+
+output "ssh_to_ldap_node" {
+  value = var.enable_ldap && var.ldap_server == "null" ? "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=5 -o ServerAliveCountMax=1 -J vpcuser@${module.login_fip.floating_ip_address} ubuntu@${local.ldap_server}" : null
 }
 
 output "vpc_name" {
@@ -17,7 +25,7 @@ output "vpc_name" {
 }
 
 output "vpn_config_info" {
-  value = var.vpn_enabled ? "IP: ${ibm_is_vpn_gateway.vpn[0].public_ip_address}, CIDR: ${ibm_is_subnet.subnet.ipv4_cidr_block}, UDP ports: 500, 4500": null
+  value = var.vpn_enabled ? "IP: ${module.vpn[0].vpn_gateway_public_ip_address}, CIDR: ${var.cluster_subnet_id == "" ? module.subnet[0].ipv4_cidr_block : data.ibm_is_subnet.existing_subnet[0].ipv4_cidr_block}, UDP ports: 500, 4500" : null
 }
 
 output "region_name" {
@@ -25,9 +33,19 @@ output "region_name" {
 }
 
 output "spectrum_scale_storage_ssh_command" {
-  value = var.spectrum_scale_enabled ? "ssh -J root@${ibm_is_floating_ip.login_fip.address} root@${ibm_is_instance.spectrum_scale_storage[0].primary_network_interface[0].primary_ip.0.address}": null
+  value = var.spectrum_scale_enabled ? "ssh -J root@${module.login_fip.floating_ip_address} root@${module.spectrum_scale_storage[0].primary_network_interface}" : null
 }
 
 output "application_center" {
-  value = var.enable_app_center ? "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -L 8443:localhost:8443 -J root@${ibm_is_floating_ip.login_fip.address} lsfadmin@${ibm_is_instance.management_host[0].primary_network_interface[0].primary_ip.0.address}": null
+  value = var.enable_app_center ? "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=5 -o ServerAliveCountMax=1 -L 8443:localhost:8443 -L 6080:localhost:6080 -J vpcuser@${module.login_fip.floating_ip_address} lsfadmin@${module.management_host[0].primary_network_interface}" : null
 }
+
+output "application_center_url" {
+  value = var.enable_app_center ? "https://localhost:8443" : null
+}
+
+output "image_map_entry_found" {
+  value = "${local.image_mapping_entry_found} --  - ${var.image_name}"
+}
+
+
