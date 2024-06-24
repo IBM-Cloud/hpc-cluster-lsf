@@ -43,12 +43,12 @@ data "ibm_is_image" "image" {
   count = local.image_mapping_entry_found ? 0 : 1
 }
 
-data "template_file" "storage_user_data" {
-  template = local.storage_template_file
-  vars = {
-    rc_cidr_block = var.cluster_subnet_id != "" ? data.ibm_is_subnet.existing_subnet[0].ipv4_cidr_block : module.subnet[0].ipv4_cidr_block
-  }
-}
+#data "template_file" "storage_user_data" {
+#  template = local.storage_template_file
+#  vars = {
+#    rc_cidr_block = var.cluster_subnet_id != "" ? data.ibm_is_subnet.existing_subnet[0].ipv4_cidr_block : module.subnet[0].ipv4_cidr_block
+#  }
+#}
 
 data "ibm_is_subnet" "existing_subnet" {
   // Lookup for this Subnet resources only if var.cluster_subnet_id is not empty

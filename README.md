@@ -1,221 +1,3 @@
-# hpc-cluster-lsf
-Repository for the HPC Cluster LSF implementation files. [Learn more](https://cloud.ibm.com/docs/ibm-spectrum-lsf)
-
-# Deployment with Schematics on IBM Cloud
-
-Initial configuration:
-
-```
-$ cp sample/configs/hpc_workspace_config.json config.json
-$ ibmcloud iam api-key-create trl-tyos-api-key --file ~/.ibm-api-key.json -d "my api key"
-$ cat ~/.ibm-api-key.json | jq -r ."apikey"
-# copy your apikey
-$ vim config.json
-# paste your apikey and set entitlements for LSF
-```
-
-You also need to generate github token if you use private Github repository.
-
-Deployment:
-
-```
-# Login to the IBM Cloud CLI
-$ ibmcloud schematics workspace new -f config.json --github-token xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-$ ibmcloud schematics workspace list
-Name               ID                                            Description   Status     Frozen
-hpcc-lsf-test       us-east.workspace.hpcc-lsf-test.7cbc3f6b                     INACTIVE   False
-
-OK
-
-$ ibmcloud schematics plan --id us-east.workspace.hpcc-cluster.7cbc3f6b
-Activity ID  51b6330e913d23636d706b084755a737
-OK
-
-$ ibmcloud schematics apply --id us-east.workspace.hpcc-lsf-test.7cbc3f6b
-Do you really want to perform this action? [y/N]> y
-
-Activity ID b0a909030f071f51d6ceb48b62ee1671
-
-OK
-$ ibmcloud schematics logs --id us-east.workspace.hpcc-lsf-test.7cbc3f6b
-...
- 2021/04/05 09:44:54 Terraform apply | Apply complete! Resources: 14 added, 0 changed, 0 destroyed.
- 2021/04/05 09:44:54 Terraform apply |
- 2021/04/05 09:44:54 Terraform apply | Outputs:
- 2021/04/05 09:44:54 Terraform apply |
- 2021/04/05 09:44:54 Terraform apply | sshcommand = ssh -J root@52.116.124.67  lsfadmin@10.241.0.6
- 2021/04/05 09:44:54 Command finished successfully.
- 2021/04/05 09:45:00 Done with the workspace action
-
-OK
-$ ssh -J root@52.116.124.67  lsfadmin@10.241.0.6
-
-$ ibmcloud schematics destroy --id us-east.workspace.hpcc-lsf-test.7cbc3f6b
-```
-
-# Accessing the deployed environment:
-
-* Connect to an LSF login node through SSH by using the `ssh_to_login_node` command from the Schematics log output.
-```
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -J vpcuser@<floating_IP_address> lsfadmin@<login_node_IP_address>
-```
-* where `floating_IP_address` is the floating IP address for the bastion node and `login_node_IP_address` is the IP address for the login node.
-
-# Steps to validate the cluster post provisioning
-
-* Login to management-host node using ssh command
-* Check the existing machines part of cluster using $bhosts or $bhosts -w command, this should show all instances
-* Submit a job that would spin 1 VM and sleep for 10 seconds -> $bsub -n 1 sleep 10, once submitted command line will show a jobID
-* Check the status for job using -> $bjobs -l <jobID>
-* Check the log file under /opt/ibm/lsf/log/ibmcloudgen2... for any messages around provisioning of the new machine
-* Continue to check status of nodes using lshosts, bjobs or bhosts commands
-* To test multiple VMs you can run multiple sleep jobs -> $bsub -n 10 sleep 10 -> This will create 10 VMs and each job will sleep for 10 seconds
-
-# Scale Setup
-
-##### 1. steps to validate spectrum scale integration
-* Login to scale storage node using SSH. (`ssh -J root@52.116.122.64 root@10.240.128.37`, 
-  details will be available in the logs output with key `spectrum_scale_storage_ssh_command`)
-* The below command shows the gpfs cluster setup on scale storage node.
-```buildoutcfg
-# /usr/lpp/mmfs/bin/mmlscluster
-```
-* The below command shows file system mounted on number of nodes
-```buildoutcfg
-# /usr/lpp/mmfs/bin/mmlsmount all
-```
-* The below command shows the fileserver details. This command can be used to validate file block size(Inode size in bytes).
-```buildoutcfg
-#   /usr/lpp/mmfs/bin/mmlsfs all -i
-```
-* Login to management-host node using SSH. (ssh -J root@52.116.122.64 root@10.240.128.41)
-* The below command shows the gpfs cluster setup on computes node. This should contain the management-host,management-host-candidate, and worker nodes.
-```buildoutcfg
-# /usr/lpp/mmfs/bin/mmlscluster
-```
-* Create a file on mountpoint path(e.g `/gpfs/fs1`) and verify on other nodes that the file can be accessed.
-##### 2. steps to access the Scale cluster GUI
-
-* Open a new command line terminal.
-* Run the following command to access the storage cluster:
-
-```buildoutcfg
-#ssh -L 22443:localhost:443 -J root@{FLOATING_IP_ADDRESS} root@{STORAGE_NODE_IP_ADDRESS}
-```
-* where STORAGE_NODE_IP_ADDRESS needs to be replaced with the storage IP address associated with {cluster_prefix}-scale-storage-0, which you gathered earlier, and FLOATING_IP_ADDRESS needs to be replaced with the floating IP address that you identified.
-
-* Open a browser on the local machine, and run https://localhost:22443. You will get an SSL self-assigned certificate warning with your browser the first time that you access this URL.
-* Enter your login credentials that you set up when you created your workspace to access the Spectrum Scale GUI.
-Accessing the compute cluster
-
-* Open a new command line terminal.
-* Run the following command to access the compute cluster:
-
-```buildoutcfg
- #ssh -L 21443:localhost:443 -J root@{FLOATING_IP_ADDRESS} root@{COMPUTE_NODE_IP_ADDRESS}
- ```
-* where COMPUTE_NODE_IP_ADDRESS needs to be replaced with the storage IP address associated with {cluster_prefix}-primary-0, which you gathered earlier, and FLOATING_IP_ADDRESS needs to be replaced with the floating IP address that you identified.
-
-* Open a browser on the local machine, and run https://localhost:21443. You will get an SSL self-assigned certificate warning with your browser the first time that you access this URL.
-* Enter your login credentials that you set up when you created your workspace to access the Spectrum Scale GUI.
-
-##### Steps to access the Application Center GUI/Dashboard.
-
-* Open a new command line terminal.
-* Run the following command to access the Application center GUI:
-
-```buildoutcfg
-# ssh -L 8443:localhost:8443 -J root@{FLOATING_IP_ADDRESS} lsfadmin@{MANGEMENT_NODE_IP_ADDRESS}
-```
-* where MANGEMENT_NODE_IP_ADDRESS needs to be replaced with the Management node IP address associated with {cluster_prefix}-management-host-0, which you gathered earlier, and FLOATING_IP_ADDRESS needs to be replaced with the floating IP address that you identified.
-
-* Open a browser on the local machine, and run https://localhost:8443. 
-
-* To access the Application Center GUI, enter the password you configured when you created your workspace and the default user as "lsfadmin".
-
-* If LDAP is enabled, you can access the LSF Application Center using the LDAP username and password that you configured during IBM Cloud® HPC cluster deployment or using an existing LDAP username and password.
-
-##### Steps to validate the OpenLDAP:
-
-* Connect to your OpenLDAP server through SSH by using the `ssh_to_ldap_node` command from the Schematics log output.
-
-```
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=5 -o ServerAliveCountMax=1 -J vpcuser@<floatingg_IP_address> ubuntu@<LDAP_server_IP>
-```
-* where `floating_IP_address` is the floating IP address for the bastion node and `LDAP_server_IP` is the IP address for the OpenLDAP node.
-
-* Verifiy the LDAP service status:
-
-```
-systemctl status slapd
-```
-
-* Verify the LDAP groups and users created:
-
-```
-ldapsearch -Q -LLL -Y EXTERNAL -H ldapi:///
-```
-
-* Submit a Job from HPC cluster Management node with LDAP user : Log into the management node using the `ssh_to_management_node` value as shown as part of output section of Schematics job log:
-
-```
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -J vpcuser@<floating_IP_address> lsfadmin@<management_node_IP_address>
-```
-* where `floating_IP_address` is the floating IP address for the bastion node and `management_node_IP_address` is the IP address for the management node.
-
-* Switch to the LDAP user (for example, switch to lsfuser05):
-
-```
-[lsfadmin@hpccluster-mgmt-1 ~]$ su lsfuser05
-Password:
-[lsfuser05@hpccluster-mgmt-1 lsfadmin]# 
-```
-
-* Submit an LSF job as the LDAP user:
-
-```
-[lsfuser05@hpccluster-mgmt-1 lsfadmin]$ bsub -J myjob[1-4] -R "rusage[mem=2G]" sleep 10
-Job <1> is submitted to default queue <normal>.
-```
-
-### Cleaning up the deployed environment:
-
-If you no longer need your deployed IBM Cloud HPC cluster, you can clean it up from your environment. The process is threefold: ensure that the cluster is free of running jobs or working compute nodes, destroy all the associated VPC resources and remove them from your IBM Cloud account, and remove the project from the IBM Cloud console.
-
-**Note**: Ensuring that the cluster is free of running jobs and working compute nodes
-
-Ensure that it is safe to destroy resources:
-
-1. As the `lsfadmin` user, close all LSF queues and kill all jobs:
-   ```
-    badmin qclose all
-    bkill -u all 0
-    ```
-
-2. Wait ten minutes (this is the default idle time), and then check for running jobs:
-    ```
-    bjobs -u all
-    ```
-
-   Look for a `No unfinished job found` message.
-
-
-3. Check that there are no compute nodes (only management nodes should be listed):
-   ```
-    bhosts -w
-   ```
-
-If the cluster has no running jobs or compute nodes, then it is safe to destroy resources from this environment.
-
-#### Destroying resources
-
-1. In the IBM Cloud console, from the **Schematics > Workspaces** view, select **Actions > Destroy resources** > **Confirm** the action by entering the workspace name in the text box and click Destroy to delete all the related VPC resources that were deployed.
-2. If you select the option to destroy resources, decide whether you want to destroy all of them. This action cannot be undone.
-3. Confirm the action by entering the workspace name in the text box and click **Destroy**.
-You can now safely remove the resources from your account.
-
-# Terraform Documentation
-
 ## Requirements
 
 | Name | Version |
@@ -229,8 +11,8 @@ You can now safely remove the resources from your account.
 |------|---------|
 | <a name="provider_http"></a> [http](#provider\_http) | 3.4.0 |
 | <a name="provider_ibm"></a> [ibm](#provider\_ibm) | 1.58.0 |
-| <a name="provider_null"></a> [null](#provider\_null) | n/a |
-| <a name="provider_template"></a> [template](#provider\_template) | n/a |
+| <a name="provider_null"></a> [null](#provider\_null) | 3.2.2 |
+| <a name="provider_template"></a> [template](#provider\_template) | 2.2.0 |
 
 ## Modules
 
@@ -320,7 +102,6 @@ You can now safely remove the resources from your account.
 | [template_file.login_user_data](https://registry.terraform.io/providers/hashicorp/template/latest/docs/data-sources/file) | data source |
 | [template_file.management_host_user_data](https://registry.terraform.io/providers/hashicorp/template/latest/docs/data-sources/file) | data source |
 | [template_file.metadata_startup_script](https://registry.terraform.io/providers/hashicorp/template/latest/docs/data-sources/file) | data source |
-| [template_file.storage_user_data](https://registry.terraform.io/providers/hashicorp/template/latest/docs/data-sources/file) | data source |
 | [template_file.worker_user_data](https://registry.terraform.io/providers/hashicorp/template/latest/docs/data-sources/file) | data source |
 
 ## Inputs
@@ -328,7 +109,7 @@ You can now safely remove the resources from your account.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_TF_PARALLELISM"></a> [TF\_PARALLELISM](#input\_TF\_PARALLELISM) | Parallelism/ concurrent operations limit. Valid values are between 1 and 256, both inclusive. [Learn more](https://www.terraform.io/docs/internals/graph.html#walking-the-graph). | `string` | `"250"` | no |
-| <a name="input_TF_VERSION"></a> [TF\_VERSION](#input\_TF\_VERSION) | The version of the Terraform engine that's used in the Schematics workspace. | `string` | `"1.1"` | no |
+| <a name="input_TF_VERSION"></a> [TF\_VERSION](#input\_TF\_VERSION) | The version of the Terraform engine that's used in the Schematics workspace. | `string` | `"1.5"` | no |
 | <a name="input_TF_WAIT_DURATION"></a> [TF\_WAIT\_DURATION](#input\_TF\_WAIT\_DURATION) | wait duration time set for the storage and worker node to complete the entire setup | `string` | `"180s"` | no |
 | <a name="input_api_key"></a> [api\_key](#input\_api\_key) | This is the IBM Cloud API key for the IBM Cloud account where the IBM Spectrum LSF cluster needs to be deployed. For more information on how to create an API key, see [Managing user API keys](https://cloud.ibm.com/docs/account?topic=account-userapikey&interface=ui). | `string` | n/a | yes |
 | <a name="input_app_center_db_pwd"></a> [app\_center\_db\_pwd](#input\_app\_center\_db\_pwd) | Password for MariaDB. Note: Password should be at least 8 characters, must have one number, one lowercase letter, one uppercase letter, and at least one special character. | `string` | `""` | no |
@@ -336,7 +117,7 @@ You can now safely remove the resources from your account.
 | <a name="input_cluster_id"></a> [cluster\_id](#input\_cluster\_id) | Unique ID of the cluster used by LSF for configuration of resources. This can be up to 39 alphanumeric characters including the underscore (\_), the hyphen (-), and the period (.) characters. Other special characters and spaces are not allowed. Do not use the name of any host or user as the name of your cluster. You cannot change the cluster ID after deployment. | `string` | `"HPCCluster"` | no |
 | <a name="input_cluster_prefix"></a> [cluster\_prefix](#input\_cluster\_prefix) | Prefix that is used to name the IBM Spectrum LSF cluster and IBM Cloud resources that are provisioned to build the IBM Spectrum LSF cluster instance. You cannot create more than one instance of the lsf cluster with the same name. Make sure that the name is unique. | `string` | `"hpcc-lsf"` | no |
 | <a name="input_cluster_subnet_id"></a> [cluster\_subnet\_id](#input\_cluster\_subnet\_id) | Existing cluster subnet ID under the VPC, where the cluster will be provisioned. | `string` | `""` | no |
-| <a name="input_compute_image_name"></a> [compute\_image\_name](#input\_compute\_image\_name) | Name of the custom image that you want to use to create virtual server instances in your IBM Cloud account to deploy the IBM Cloud HPC cluster dynamic compute nodes. By default, the solution uses a RHEL 8-6 OS image with additional software packages mentioned [here](https://cloud.ibm.com/docs/hpc-spectrum-LSF#create-custom-image). If you would like to include your application-specific binary files, follow the instructions in [ Planning for custom images ](https://cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the IBM Cloud HPC cluster through this offering. | `string` | `"hpcaas-lsf10-rhel88-compute-v2"` | no |
+| <a name="input_compute_image_name"></a> [compute\_image\_name](#input\_compute\_image\_name) | Name of the custom image that you want to use to create virtual server instances in your IBM Cloud account to deploy the IBM Cloud HPC cluster dynamic compute nodes. By default, the solution uses a RHEL 8-6 OS image with additional software packages mentioned [here](https://cloud.ibm.com/docs/hpc-spectrum-LSF#create-custom-image). If you would like to include your application-specific binary files, follow the instructions in [ Planning for custom images ](https://cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the IBM Cloud HPC cluster through this offering. | `string` | `"hpcc-lsf10-rhel88-compute-v3"` | no |
 | <a name="input_create_authorization_policy_vpc_to_cos"></a> [create\_authorization\_policy\_vpc\_to\_cos](#input\_create\_authorization\_policy\_vpc\_to\_cos) | Set it to true if authorization policy is required for VPC to access COS. This can be set to false if authorization policy already exists. For more information on how to create authorization policy manually, see [creating authorization policies for VPC flow log](https://cloud.ibm.com/docs/vpc?topic=vpc-ordering-flow-log-collector&interface=ui#fl-before-you-begin-ui). | `bool` | `false` | no |
 | <a name="input_custom_file_shares"></a> [custom\_file\_shares](#input\_custom\_file\_shares) | Mount points and sizes in GB and IOPS range of file shares that can be used to customize shared file storage layout. Provide the details for up to 5 shares. Each file share size in GB supports different range of IOPS. For more information, see [file share IOPS value](https://cloud.ibm.com/docs/vpc?topic=vpc-file-storage-profiles&interface=ui). | <pre>list(object({<br>    mount_path = string,<br>    size       = number,<br>    iops       = number<br>  }))</pre> | <pre>[<br>  {<br>    "iops": 2000,<br>    "mount_path": "/mnt/binaries",<br>    "size": 100<br>  },<br>  {<br>    "iops": 6000,<br>    "mount_path": "/mnt/data",<br>    "size": 100<br>  }<br>]</pre> | no |
 | <a name="input_dedicated_host_enabled"></a> [dedicated\_host\_enabled](#input\_dedicated\_host\_enabled) | Set to true to use dedicated hosts for compute hosts (default: false). Note that lsf still dynamically provisions compute hosts at public VSIs and dedicated hosts are used only for static compute hosts provisioned at the time the cluster is created. The number of dedicated hosts and the profile names for dedicated hosts are calculated from worker\_node\_min\_count and dedicated\_host\_type\_name. | `bool` | `false` | no |
@@ -352,7 +133,7 @@ You can now safely remove the resources from your account.
 | <a name="input_existing_storage_bucket_name"></a> [existing\_storage\_bucket\_name](#input\_existing\_storage\_bucket\_name) | Name of the COS bucket to collect VPC flow logs. | `string` | `null` | no |
 | <a name="input_hyperthreading_enabled"></a> [hyperthreading\_enabled](#input\_hyperthreading\_enabled) | Setting this to true will enable hyper-threading in the worker nodes of the cluster (default). Otherwise, hyper-threading will be disabled. | `bool` | `true` | no |
 | <a name="input_ibm_customer_number"></a> [ibm\_customer\_number](#input\_ibm\_customer\_number) | Comma-separated list of the IBM Customer Number(s) (ICN) that is used for the Bring Your Own License (BYOL) entitlement check. For more information on how to find your ICN, see [What is my IBM Customer Number (ICN)?](https://www.ibm.com/support/pages/what-my-ibm-customer-number-icn). | `string` | `""` | no |
-| <a name="input_image_name"></a> [image\_name](#input\_image\_name) | Name of the custom image that you want to use to create virtual server instances in your IBM Cloud account to deploy the IBM Spectrum LSF cluster. By default, the automation uses a base image with additional software packages documented [here](https://cloud.ibm.com/docs/ibm-spectrum-lsf). If you would like to include your application-specific binary files, follow the instructions in [Planning for custom images](https://cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the IBM Spectrum LSF cluster through this offering. | `string` | `"hpcc-lsf10-scale5190-rhel88-3-0"` | no |
+| <a name="input_image_name"></a> [image\_name](#input\_image\_name) | Name of the custom image that you want to use to create virtual server instances in your IBM Cloud account to deploy the IBM Spectrum LSF cluster. By default, the automation uses a base image with additional software packages documented [here](https://cloud.ibm.com/docs/ibm-spectrum-lsf). If you would like to include your application-specific binary files, follow the instructions in [Planning for custom images](https://cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the IBM Spectrum LSF cluster through this offering. | `string` | `"hpcc-lsf10-scale5193-rhel88-4-0"` | no |
 | <a name="input_is_flow_log_collector_active"></a> [is\_flow\_log\_collector\_active](#input\_is\_flow\_log\_collector\_active) | Indicates whether the collector is active. If false, this collector is created in inactive mode. | `bool` | `true` | no |
 | <a name="input_kms_instance_id"></a> [kms\_instance\_id](#input\_kms\_instance\_id) | Unique identifier of the Key Protect instance associated with the Key Management Service. While providing an existing “kms\_instance\_id”, it's necessary to create the required authorization policy for encryption to be completed. To create the authorisation policy, go to [Service authorizations](https://cloud.ibm.com/docs/vpc?topic=vpc-block-s2s-auth&interface=ui). The ID can be found under the details of the KMS, see [View key-protect ID](https://cloud.ibm.com/docs/key-protect?topic=key-protect-retrieve-instance-ID&interface=ui). | `string` | `""` | no |
 | <a name="input_kms_key_name"></a> [kms\_key\_name](#input\_kms\_key\_name) | Provide the existing KMS encryption key name that you want to use for the IBM Cloud LSF cluster. (for example kms\_key\_name: my-encryption-key). | `string` | `""` | no |
@@ -376,7 +157,7 @@ You can now safely remove the resources from your account.
 | <a name="input_scale_storage_cluster_filesystem_mountpoint"></a> [scale\_storage\_cluster\_filesystem\_mountpoint](#input\_scale\_storage\_cluster\_filesystem\_mountpoint) | Spectrum Scale Storage cluster (owningCluster) Filesystem mount point. The owningCluster is the cluster that owns and serves the file system to be mounted. [Mounting a remote GPFS file system](https://www.ibm.com/docs/en/spectrum-scale/5.1.5?topic=system-mounting-remote-gpfs-file). | `string` | `"/gpfs/fs1"` | no |
 | <a name="input_scale_storage_cluster_gui_password"></a> [scale\_storage\_cluster\_gui\_password](#input\_scale\_storage\_cluster\_gui\_password) | Password for Spectrum Scale storage cluster GUI. Note: Password should be at least 8 characters, must have one number, one lowercase letter, one uppercase letter, and at least one unique character. Password should not contain username. | `string` | `""` | no |
 | <a name="input_scale_storage_cluster_gui_username"></a> [scale\_storage\_cluster\_gui\_username](#input\_scale\_storage\_cluster\_gui\_username) | GUI user to perform system management and monitoring tasks on storage cluster. Note: Username should be at least 4 characters, any combination of lowercase and uppercase letters. | `string` | `""` | no |
-| <a name="input_scale_storage_image_name"></a> [scale\_storage\_image\_name](#input\_scale\_storage\_image\_name) | Name of the custom image that you would like to use to create virtual machines in your IBM Cloud account to deploy the Spectrum Scale storage cluster. By default, the automation uses a base image plus the Spectrum Scale software and any other software packages that it requires. If you would like, you can follow the instructions for [Planning for custom images](https://test.cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the Spectrum Scale storage cluster through this offering. | `string` | `"hpcc-scale5190-rhel88"` | no |
+| <a name="input_scale_storage_image_name"></a> [scale\_storage\_image\_name](#input\_scale\_storage\_image\_name) | Name of the custom image that you would like to use to create virtual machines in your IBM Cloud account to deploy the Spectrum Scale storage cluster. By default, the automation uses a base image plus the Spectrum Scale software and any other software packages that it requires. If you would like, you can follow the instructions for [Planning for custom images](https://test.cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the Spectrum Scale storage cluster through this offering. | `string` | `"hpcc-scale5193-rhel88"` | no |
 | <a name="input_scale_storage_node_count"></a> [scale\_storage\_node\_count](#input\_scale\_storage\_node\_count) | The number of Spectrum scale storage nodes that will be provisioned at the time the cluster is created. Enter a value in the range 2 - 18. It must to be divisible of 2. | `number` | `4` | no |
 | <a name="input_scale_storage_node_instance_type"></a> [scale\_storage\_node\_instance\_type](#input\_scale\_storage\_node\_instance\_type) | Specify the virtual server instance storage profile type name to be used to create the Spectrum Scale storage nodes for the Spectrum Storage cluster. For more information, see [Instance profiles](https://cloud.ibm.com/docs/vpc?topic=vpc-profiles&interface=ui). | `string` | `"cx2d-8x16"` | no |
 | <a name="input_spectrum_scale_enabled"></a> [spectrum\_scale\_enabled](#input\_spectrum\_scale\_enabled) | Setting this to true will enables Spectrum Scale integration with the cluster. Otherwise, Spectrum Scale integration will be disabled (default). By entering 'true' for the property, you have also agreed to one of the two conditions: (1) You are using the software in production and confirm you have sufficient licenses to cover your use under the International Program License Agreement (IPLA). (2) You are evaluating the software and agree to abide by the International License Agreement for Evaluation of Programs (ILAE). Note: Failure to comply with licenses for production use of software is a violation of [IBM International Program License Agreement](https://www.ibm.com/software/passportadvantage/programlicense.html). | `bool` | `false` | no |

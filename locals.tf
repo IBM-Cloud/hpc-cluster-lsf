@@ -37,6 +37,7 @@ locals {
   worker_template_file          = lookup(local.script_map, "worker")
   login_vsi                     = lookup(local.script_map, "login_vsi")
   ldap_user_data                = lookup(local.script_map, "ldap_user_data")
+  metadata_startup_template_file  = lookup(local.script_map, "spectrum_storage")
   tags                          = ["hpcc", var.cluster_prefix]
   vcpus                         = tonumber(data.ibm_is_instance_profile.worker.vcpu_count[0].value)
   ncores                        = local.vcpus / 2
@@ -152,7 +153,6 @@ locals {
 }
 
 locals {
-  metadata_startup_template_file  = lookup(local.script_map, "spectrum_storage")
   scale_image_mapping_entry_found = contains(keys(local.scale_image_region_map), var.scale_storage_image_name)
   scale_image_id                  = local.scale_image_mapping_entry_found ? lookup(lookup(local.scale_image_region_map, var.scale_storage_image_name), local.region_name) : "Image not found with the given name"
 

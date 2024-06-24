@@ -131,6 +131,9 @@ else
 fi
 cat /mnt/lsf/ssh/id_rsa.pub >> /home/lsfadmin/.ssh/authorized_keys
 cp /mnt/lsf/ssh/id_rsa /home/lsfadmin/.ssh/id_rsa
+cp /mnt/lsf/ssh/id_rsa /root/.ssh/id_rsa
+cat /mnt/lsf/ssh/id_rsa.pub >> /root/.ssh/authorized_keys
+echo "${temp_public_key}" >> /root/.ssh/authorized_keys
 echo "StrictHostKeyChecking no" >>  /home/lsfadmin/.ssh/config
 chmod 600  /home/lsfadmin/.ssh/authorized_keys
 chmod 700  /home/lsfadmin/.ssh
@@ -171,7 +174,7 @@ sed -i "s/LSF_SERVER_HOSTS=.*/LSF_SERVER_HOSTS=\"$ManagementHostNames\"/g" "$LSF
 
 cat << EOF > /etc/profile.d/lsf.sh
 ls /opt/ibm/lsf_worker/conf/lsf.conf > /dev/null 2> /dev/null < /dev/null &
-usleep 10000
+#usleep 10000
 PID=\$!
 if kill -0 \$PID 2> /dev/null; then
   # lsf.conf is not accessible 
@@ -195,7 +198,12 @@ for hostname in $ManagementHostNames; do
     sleep 5
   done
 done
-cat /opt/ibm/lsf/conf/hosts >> /etc/hosts
+
+if [ "$spectrum_scale" == false ]; then
+  cat /opt/ibm/lsf/conf/hosts >> /etc/hosts
+else
+  echo "scale is enabled and this push is not needed"
+fi
 
 # Create lsf.sudoers file to support single lsfstartup and lsfrestart command from management node
 cat <<EOT > "/etc/lsf.sudoers"
@@ -212,6 +220,47 @@ cat /opt/ibm/lsf/conf/hosts >> /etc/hosts
 lsf_daemons start &
 sleep 5
 lsf_daemons status >> "$logfile"
+
+if [ "$spectrum_scale" == true ]; then
+  echo "Entering sleep mode to update Network Manager"
+  sleep 300
+  # Create the Ansible playbook to update /etc/resolv.conf
+  cat <<EOF > /root/update_resolv_conf.yml
+---
+- name: Backup, update, and protect resolv.conf
+  hosts: localhost
+  become: yes
+  tasks:
+    - name: Backup original /etc/resolv.conf
+      copy:
+        src: /etc/resolv.conf
+        dest: /etc/resolv.conf.bkp
+        remote_src: yes
+        owner: root
+        group: root
+        mode: '0644'
+    - name: Make /etc/resolv.conf editable
+      command: chattr -i /etc/resolv.conf
+    - name: Update /etc/resolv.conf with custom content
+      lineinfile:
+        path: /etc/resolv.conf
+        state: present
+        create: yes
+        line: "{{ item }}"
+      loop:
+        - 'search ${dns_domain}'
+    - name: Make /etc/resolv.conf immutable
+      command: chattr +i /etc/resolv.conf
+EOF
+
+  # Run the playbook
+  ansible-playbook /root/update_resolv_conf.yml
+
+  echo "Exiting sleep mode after updating Network Manager"
+
+else
+  echo "spectrum_scale is false, skipping playbook creation and execution"
+fi
 
 # Setting up the LDAP configuration
 if [ "$enable_ldap" = "true" ]; then

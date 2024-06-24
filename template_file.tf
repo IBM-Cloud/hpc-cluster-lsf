@@ -78,6 +78,14 @@ data "template_file" "metadata_startup_script" {
     management_node_count = var.management_node_count
     cluster_prefix        = var.cluster_prefix
     instance_profile_type = data.ibm_is_instance_profile.spectrum_scale_storage.disks.0.quantity.0.type
+    mount_path            = module.cluster_file_share.mount_path
+    custom_file_shares    = join(" ", [for file_share in module.custom_file_share[*].mount_path : file_share])
+    custom_mount_paths    = join(" ", [for mount_path in var.custom_file_shares[*]["mount_path"] : mount_path])
+    network_interface     = local.network_interface
+    dns_domain            = var.dns_domain
+    enable_ldap           = var.enable_ldap
+    ldap_server_ip        = local.ldap_server
+    ldap_basedns          = var.enable_ldap == true ? var.ldap_basedns : "null"
   }
 }
 

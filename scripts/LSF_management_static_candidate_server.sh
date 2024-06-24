@@ -147,7 +147,13 @@ for hostname in $ManagementHostNames; do
     sleep 5
   done
 done
-cat $LSF_HOSTS_FILE >> /etc/hosts
+
+if [ "$spectrum_scale" == false ]; then
+  cat $LSF_HOSTS_FILE >> /etc/hosts
+else
+  echo "scale is enabled and this push is not needed"
+fi
+
 
 # Create lsf.sudoers file to support single lsfstartup and lsfrestart command from management node
 cat <<EOT > "/etc/lsf.sudoers"
@@ -166,6 +172,47 @@ lsf_daemons status >> "$logfile"
 
 # TODO: Understand how lsf should work after reboot, need better cron job
 (crontab -l 2>/dev/null; echo "@reboot sleep 30 && source ~/.bashrc && lsf_daemons start && lsf_daemons status") | crontab -
+
+if [ "$spectrum_scale" == true ]; then
+  echo "Entering sleep mode to update Network Manager"
+  sleep 300
+  # Create the Ansible playbook to update /etc/resolv.conf
+  cat <<EOF > /root/update_resolv_conf.yml
+---
+- name: Backup, update, and protect resolv.conf
+  hosts: localhost
+  become: yes
+  tasks:
+    - name: Backup original /etc/resolv.conf
+      copy:
+        src: /etc/resolv.conf
+        dest: /etc/resolv.conf.bkp
+        remote_src: yes
+        owner: root
+        group: root
+        mode: '0644'
+    - name: Make /etc/resolv.conf editable
+      command: chattr -i /etc/resolv.conf
+    - name: Update /etc/resolv.conf with custom content
+      lineinfile:
+        path: /etc/resolv.conf
+        state: present
+        create: yes
+        line: "{{ item }}"
+      loop:
+        - 'search ${dns_domain}'
+    - name: Make /etc/resolv.conf immutable
+      command: chattr +i /etc/resolv.conf
+EOF
+
+  # Run the playbook
+  ansible-playbook /root/update_resolv_conf.yml
+
+  echo "Exiting sleep mode after updating Network Manager"
+
+else
+  echo "spectrum_scale is false, skipping playbook creation and execution"
+fi
 
 # Setting up the LDAP configuration
 if [ "$enable_ldap" = "true" ]; then

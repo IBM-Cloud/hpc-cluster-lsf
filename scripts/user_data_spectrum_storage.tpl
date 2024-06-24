@@ -2,6 +2,16 @@
 
 
 temp_public_key="${temp_public_key}"
+mount_path="${mount_path}"
+custom_file_shares="${custom_file_shares}"
+custom_mount_paths="${custom_mount_paths}"
+rc_cidr_block="${rc_cidr_block}"
+cluster_prefix="${cluster_prefix}"
+dns_domain="${dns_domain}"
+network_interface="${network_interface}"
+enable_ldap="${enable_ldap}"
+ldap_server_ip="${ldap_server_ip}"
+ldap_basedns="${ldap_basedns}"
 
 if grep -q "Red Hat" /etc/os-release
 then
