@@ -667,7 +667,13 @@ for hostname in $ManagementHostNames; do
     sleep 10
   done
 done
-cat $LSF_HOSTS_FILE >> /etc/hosts
+
+if [ "$spectrum_scale" == false ]; then
+  cat $LSF_HOSTS_FILE >> /etc/hosts
+else
+  echo "scale is enabled and this push is not needed"
+fi
+
 #update lsf client ip address to LSF_HOSTS_FILE
 echo $login_ip_address   $login_hostname >> $LSF_HOSTS_FILE
 
@@ -685,6 +691,48 @@ echo "Added LSF administrators to start LSF daemons" >> $logfile
 lsf_daemons start &
 sleep 5
 lsf_daemons status >> $logfile
+
+if [ "$spectrum_scale" == true ]; then
+  echo "Entering sleep mode to update Network Manager"
+  sleep 300
+  # Create the Ansible playbook to update /etc/resolv.conf
+  cat <<EOF > /root/update_resolv_conf.yml
+---
+- name: Backup, update, and protect resolv.conf
+  hosts: localhost
+  become: yes
+  tasks:
+    - name: Backup original /etc/resolv.conf
+      copy:
+        src: /etc/resolv.conf
+        dest: /etc/resolv.conf.bkp
+        remote_src: yes
+        owner: root
+        group: root
+        mode: '0644'
+    - name: Make /etc/resolv.conf editable
+      command: chattr -i /etc/resolv.conf
+    - name: Update /etc/resolv.conf with custom content
+      lineinfile:
+        path: /etc/resolv.conf
+        state: present
+        create: yes
+        line: "{{ item }}"
+      loop:
+        - 'search ${dns_domain}'
+    - name: Make /etc/resolv.conf immutable
+      command: chattr +i /etc/resolv.conf
+EOF
+
+  # Run the playbook
+  ansible-playbook /root/update_resolv_conf.yml
+
+  echo "Exiting sleep mode after updating Network Manager"
+
+else
+  echo "spectrum_scale is false, skipping playbook creation and execution"
+fi
+
 
 # Application Center Installation
 if [ "$enable_app_center" = true ]; then
@@ -738,6 +786,7 @@ if [ "$enable_app_center" = true ]; then
 else
 	  echo 'Application center installation skipped !!' >> $logfile
 fi
+
 
 # Setting up the LDAP configuration
 if [ "$enable_ldap" = "true" ]; then

@@ -329,7 +329,7 @@ module "spectrum_scale_storage" {
   zone               = data.ibm_is_zone.zone.name
   keys               = local.ssh_key_id_list
   resource_group     = data.ibm_resource_group.rg.id
-  user_data          = "${data.template_file.metadata_startup_script.rendered} ${data.template_file.storage_user_data.rendered} ${file("${path.module}/scripts/LSF_spectrum_storage.sh")}"
+  user_data          = "${data.template_file.metadata_startup_script.rendered} ${file("${path.module}/scripts/LSF_spectrum_storage.sh")}"
   tags               = local.tags
   subnet_id          = var.cluster_subnet_id != "" ? var.cluster_subnet_id : module.subnet[0].subnet_id
   instance_id        = local.dns_instance_id
@@ -419,6 +419,8 @@ module "custom_resolver" {
   dns_custom_resolver_id = var.dns_custom_resolver_id
   subnet_crn             = local.subnet_crn
   description            = "DNS resolver"
+  depends_on             = [module.bastion_vsi, module.worker_vsi, module.login_vsi, module.management_host, module.management_host_candidate, module.spectrum_scale_storage, module.ldap_vsi]
+
 }
 
 module "vpn" {
@@ -500,7 +502,8 @@ module "check_cluster_status" {
     module.bastion_vsi,
     module.management_host,
     module.management_host_candidate,
-    module.worker_vsi
+    module.worker_vsi,
+    module.custom_resolver
   ]
 }
 
@@ -518,7 +521,8 @@ module "check_node_status" {
     module.management_host,
     module.management_host_candidate,
     module.check_cluster_status,
-    module.worker_vsi
+    module.worker_vsi,
+    module.custom_resolver
   ]
 }
 
@@ -527,7 +531,7 @@ module "storage_nodes_wait" { # Setting up the variable time as 180s for the ent
   count         = (var.spectrum_scale_enabled && var.scale_storage_node_count > 0) ? 1 : 0
   source        = "./resources/scale_common/wait"
   wait_duration = var.TF_WAIT_DURATION
-  depends_on    = [module.spectrum_scale_storage]
+  depends_on    = [module.spectrum_scale_storage, module.custom_resolver]
 }
 
 // After completion of compute nodes, nodes need wait time to get in running state.
@@ -535,7 +539,7 @@ module "compute_nodes_wait" { # Setting up the variable time as 180s for the ent
   count         = (var.spectrum_scale_enabled && var.scale_storage_node_count > 0) ? 1 : 0
   source        = "./resources/scale_common/wait"
   wait_duration = var.TF_WAIT_DURATION
-  depends_on    = [module.management_host, module.management_host_candidate, module.worker_vsi]
+  depends_on    = [module.management_host, module.management_host_candidate, module.worker_vsi, module.custom_resolver]
 }
 
 // This module is used to clone ansible repo for scale.

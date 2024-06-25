@@ -146,7 +146,7 @@ variable "cluster_id" {
 
 variable "image_name" {
   type        = string
-  default     = "hpcc-lsf10-scale5190-rhel88-3-0"
+  default     = "hpcc-lsf10-scale5193-rhel88-4-0"
   description = "Name of the custom image that you want to use to create virtual server instances in your IBM Cloud account to deploy the IBM Spectrum LSF cluster. By default, the automation uses a base image with additional software packages documented [here](https://cloud.ibm.com/docs/ibm-spectrum-lsf). If you would like to include your application-specific binary files, follow the instructions in [Planning for custom images](https://cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the IBM Spectrum LSF cluster through this offering."
 }
 
@@ -289,7 +289,7 @@ variable "dedicated_host_placement" {
 
 variable "TF_VERSION" {
   type        = string
-  default     = "1.1"
+  default     = "1.5"
   description = "The version of the Terraform engine that's used in the Schematics workspace."
 }
 
@@ -311,7 +311,7 @@ variable "spectrum_scale_enabled" {
 
 variable "scale_storage_image_name" {
   type        = string
-  default     = "hpcc-scale5190-rhel88"
+  default     = "hpcc-scale5193-rhel88"
   description = "Name of the custom image that you would like to use to create virtual machines in your IBM Cloud account to deploy the Spectrum Scale storage cluster. By default, the automation uses a base image plus the Spectrum Scale software and any other software packages that it requires. If you would like, you can follow the instructions for [Planning for custom images](https://test.cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the Spectrum Scale storage cluster through this offering."
 }
 
@@ -537,7 +537,7 @@ variable "ldap_vsi_osimage_name" {
 
 variable "compute_image_name" {
   type        = string
-  default     = "hpcaas-lsf10-rhel88-compute-v2"
+  default     = "hpcc-lsf10-rhel88-compute-v3"
   description = "Name of the custom image that you want to use to create virtual server instances in your IBM Cloud account to deploy the IBM Cloud HPC cluster dynamic compute nodes. By default, the solution uses a RHEL 8-6 OS image with additional software packages mentioned [here](https://cloud.ibm.com/docs/hpc-spectrum-LSF#create-custom-image). If you would like to include your application-specific binary files, follow the instructions in [ Planning for custom images ](https://cloud.ibm.com/docs/vpc?topic=vpc-planning-custom-images) to create your own custom image and use that to build the IBM Cloud HPC cluster through this offering."
 }
 variable "enable_vpc_flow_logs" {
