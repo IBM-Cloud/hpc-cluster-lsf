@@ -156,13 +156,20 @@ echo 'net.core.somaxconn = 8000' >> "$LSF_TUNABLES"
 sysctl -p "$LSF_TUNABLES"
 
 # Defining ncpus based on hyper-threading
+echo "$hyperthreading"
 if [ "$hyperthreading" == true ]; then
   ego_define_ncpus="threads"
 else
   ego_define_ncpus="cores"
-  for vcpu in $(cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | cut -s -d- -f2 | cut -d- -f2 | uniq); do
-    echo "0" > "/sys/devices/system/cpu/cpu$vcpu/online"
-  done
+  cat << 'EOT' > /root/lsf_hyperthreading
+#!/bin/sh
+for vcpu in $(cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | cut -s -d- -f2 | cut -d- -f2 | uniq); do
+    echo "0" > "/sys/devices/system/cpu/cpu"$vcpu"/online"
+done
+EOT
+  chmod 755 /root/lsf_hyperthreading
+  command="/root/lsf_hyperthreading"
+  sh $command && (crontab -l 2>/dev/null; echo "@reboot $command") | crontab -
 fi
 echo "EGO_DEFINE_NCPUS=${ego_define_ncpus}" >> "$LSF_CONF_FILE"
 
@@ -205,21 +212,28 @@ else
   echo "scale is enabled and this push is not needed"
 fi
 
+systemctl stop firewalld
+systemctl status firewalld
+
 # Create lsf.sudoers file to support single lsfstartup and lsfrestart command from management node
-cat <<EOT > "/etc/lsf.sudoers"
-LSF_STARTUP_USERS="lsfadmin"
-LSF_STARTUP_PATH=$LSF_TOP_VERSION/linux3.10-glibc2.17-x86_64/etc/
-EOT
+# Create lsf.sudoers file to support single lsfstartup and lsfrestart command from management node
+echo 'LSF_STARTUP_USERS="lsfadmin"' | sudo tee -a /etc/lsf1.sudoers
+echo "LSF_STARTUP_PATH=$LSF_TOP_VERSION/linux3.10-glibc2.17-x86_64/etc/" | sudo tee -a /etc/lsf.sudoers
 chmod 600 /etc/lsf.sudoers
 ls -l /etc/lsf.sudoers
-sudo /opt/ibm/lsf/10.1/install/hostsetup --top="/opt/ibm/lsf_worker/" --setuid
+
+# Change LSF_CONF= value in lsf_daemons
+cd /opt/ibm/lsf_worker/10.1/linux3.10-glibc2.17-x86_64/etc/
+sed -i "s|/opt/ibm/lsf/|/opt/ibm/lsf_worker/|g" lsf_daemons
+cd -
+
+sudo /opt/ibm/lsf/10.1/install/hostsetup --top="${LSF_TOP}" --setuid    ### WARNING: LSF_TOP may be unset here
 echo "Added LSF administrators to start LSF daemons" >> $logfile
+
+# Install LSF as a service and start up
+/opt/ibm/lsf_worker/10.1/install/hostsetup --top="/opt/ibm/lsf_worker" --boot="y" --start="y" --dynamic 2>&1 >> $logfile
 cat /opt/ibm/lsf/conf/hosts >> /etc/hosts
 
-# Startup lsf daemons
-lsf_daemons start &
-sleep 5
-lsf_daemons status >> "$logfile"
 
 if [ "$spectrum_scale" == true ]; then
   echo "Entering sleep mode to update Network Manager"

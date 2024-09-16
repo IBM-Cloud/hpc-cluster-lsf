@@ -109,8 +109,14 @@ chmod 700 /root/.ssh
 chown -R root:root /root/.ssh
 sleep 5
 
+rpm --import https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-8
+yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+pip3 install ansible
+systemctl stop firewalld
+systemctl status firewalld
+
 echo "entering sleep mode to update network manager"
-sleep 300
+sleep 200
 # Import the EPEL GPG key and enable EPEL repository
 # Create the Ansible playbook to update /etc/resolv.conf
 cat <<EOF > /root/update_resolv_conf.yml
@@ -156,6 +162,8 @@ if [ "$enable_ldap" = "true" ]; then
 
     if [ "$rhel_version" == "8" ]; then
         echo "Detected RHEL 8. Proceeding with LDAP client configuration...." >> "$logfile"
+        echo "installing ldap required packages" >> "$logfile"
+        dnf install -y libnsl libnsl2 openldap-clients nss-pam-ldapd authselect sssd oddjob oddjob-mkhomedir
 
         # Allow Password authentication
         sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
@@ -218,10 +226,6 @@ EOF
             echo "LDAP configuration failed !!" >> "$logfile"
             exit 1
         fi
-
-        # Make LSF commands available for every user.
-        echo ". ${LSF_CONF}/profile.lsf" >> /etc/bashrc
-        source /etc/bashrc
     else
         echo "This script is designed for RHEL 8. Detected RHEL version: $rhel_version. Exiting." >> "$logfile"
         exit 1

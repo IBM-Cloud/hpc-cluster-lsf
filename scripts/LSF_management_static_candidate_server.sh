@@ -35,6 +35,8 @@ echo "DOMAIN=\"${dns_domain}\"" >> "/etc/sysconfig/network-scripts/ifcfg-${netwo
 gateway_ip=$(ip route | grep default | awk '{print $3}' | head -n 1)
 echo "${rc_cidr_block} via $gateway_ip dev eth0 metric 0 mtu 9000" >> /etc/sysconfig/network-scripts/route-eth0
 systemctl restart NetworkManager
+systemctl stop firewalld
+systemctl status firewalld
 
 # Setup LSF
 echo "Setting LSF configuration is completed." >> $logfile
@@ -123,10 +125,20 @@ echo 'net.core.somaxconn = 8000' >> $LSF_TUNABLES
 sudo sysctl -p $LSF_TUNABLES
 
 # Defining ncpus based on hyper-threading
-if [ ! "$hyperthreading" == true ]; then
-  for vcpu in $(cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | cut -s -d- -f2 | cut -d- -f2 | uniq); do
-    echo 0 > /sys/devices/system/cpu/cpu"$vcpu"/online
-  done
+echo "$hyperthreading"
+if [ "$hyperthreading" == true ]; then
+  ego_define_ncpus="threads"
+else
+  ego_define_ncpus="cores"
+  cat << 'EOT' > /root/lsf_hyperthreading
+#!/bin/sh
+for vcpu in $(cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | cut -s -d- -f2 | cut -d- -f2 | uniq); do
+    echo "0" > "/sys/devices/system/cpu/cpu"$vcpu"/online"
+done
+EOT
+  chmod 755 /root/lsf_hyperthreading
+  command="/root/lsf_hyperthreading"
+  sh $command && (crontab -l 2>/dev/null; echo "@reboot $command") | crontab -
 fi
 
 echo "source ${LSF_CONF}/profile.lsf" >> /home/lsfadmin/.bashrc
@@ -154,7 +166,6 @@ else
   echo "scale is enabled and this push is not needed"
 fi
 
-
 # Create lsf.sudoers file to support single lsfstartup and lsfrestart command from management node
 cat <<EOT > "/etc/lsf.sudoers"
 LSF_STARTUP_USERS="lsfadmin"
@@ -162,16 +173,14 @@ LSF_STARTUP_PATH=$LSF_TOP_VERSION/linux3.10-glibc2.17-x86_64/etc/
 EOT
 chmod 600 /etc/lsf.sudoers
 ls -l /etc/lsf.sudoers
-sudo /opt/ibm/lsf/10.1/install/hostsetup --top="/opt/ibm/lsf/" --setuid
-echo "Added LSF administrators to start LSF daemons" >> $logfile
 
-# Startup lsf daemons
-lsf_daemons start &
-sleep 5
-lsf_daemons status >> "$logfile"
+echo "getting into the hostsetup configuration"
+/opt/ibm/lsf/10.1/install/hostsetup --top=/opt/ibm/lsf --setuid
+echo "Added LSF administrators to start LSF daemons"
 
-# TODO: Understand how lsf should work after reboot, need better cron job
-(crontab -l 2>/dev/null; echo "@reboot sleep 30 && source ~/.bashrc && lsf_daemons start && lsf_daemons status") | crontab -
+echo "getting into the conigure lsfd configuration"
+/opt/ibm/lsf/10.1/install/hostsetup --top=/opt/ibm/lsf --boot="y" --start="y"
+systemctl status lsfd
 
 if [ "$spectrum_scale" == true ]; then
   echo "Entering sleep mode to update Network Manager"

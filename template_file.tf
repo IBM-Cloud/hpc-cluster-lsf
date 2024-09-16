@@ -4,7 +4,7 @@ data "template_file" "management_host_user_data" {
     cluster_name                  = var.cluster_id
     vpc_apikey_value              = var.api_key
     resource_records_apikey_value = var.api_key
-    image_id                      = local.compute_image_mapping_entry_found ? local.new_compute_image_id : data.ibm_is_image.image[0].id
+    image_id                      = local.compute_image_mapping_entry_found ? local.new_compute_image_id : data.ibm_is_image.compute[0].id
     subnet_id                     = var.cluster_subnet_id != "" ? data.ibm_is_subnet.existing_subnet[0].crn : module.subnet[0].subnet_crn
     security_group_id             = module.sg.sg_id
     sshkey_id                     = data.ibm_is_ssh_key.ssh_key[local.ssh_key_list[0]].id
@@ -99,6 +99,7 @@ data "template_file" "login_user_data" {
     cluster_prefix    = var.cluster_prefix
     rc_cidr_block     = local.rc_cidr_block
     ldap_server_ip    = local.ldap_server
+    hyperthreading    = var.hyperthreading_enabled
     ldap_basedns      = var.enable_ldap == true ? var.ldap_basedns : "null"
   }
 }

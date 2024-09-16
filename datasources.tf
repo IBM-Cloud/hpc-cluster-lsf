@@ -117,4 +117,9 @@ data "ibm_is_subnet" "existing_login_subnet" {
 data "ibm_is_image" "ldap_vsi_image" {
   name  = var.ldap_vsi_osimage_name
   count = var.ldap_basedns != null && var.ldap_server == "null" ? 1 : 0
-} 
+}
+
+data "ibm_is_image" "compute" {
+  name = var.compute_image_name
+  count = local.compute_image_mapping_entry_found ? 0 : 1
+}

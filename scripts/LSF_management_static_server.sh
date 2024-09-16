@@ -47,6 +47,8 @@ echo "DOMAIN=\"${dns_domain}\"" >> "/etc/sysconfig/network-scripts/ifcfg-${netwo
 gateway_ip=$(ip route | grep default | awk '{print $3}' | head -n 1)
 echo "${rc_cidr_block} via $gateway_ip dev eth0 metric 0 mtu 9000" >> /etc/sysconfig/network-scripts/route-eth0
 systemctl restart NetworkManager
+systemctl stop firewalld
+systemctl status firewalld
 
 # Setup LSF
 echo "Setting LSF share." >> $logfile
@@ -138,13 +140,20 @@ echo 'net.core.somaxconn = 8000' >> $LSF_TUNABLES
 sudo sysctl -p $LSF_TUNABLES
 
 # Hyperthreading
+echo "$hyperthreading"
 if [ "$hyperthreading" == true ]; then
   ego_define_ncpus="threads"
 else
   ego_define_ncpus="cores"
-  for vcpu in $(cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | cut -s -d- -f2 | cut -d- -f2 | uniq); do
-    echo 0 > /sys/devices/system/cpu/cpu"$vcpu"/online
-  done
+  cat << 'EOT' > /root/lsf_hyperthreading
+#!/bin/sh
+for vcpu in $(cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | cut -s -d- -f2 | cut -d- -f2 | uniq); do
+    echo "0" > "/sys/devices/system/cpu/cpu"$vcpu"/online"
+done
+EOT
+  chmod 755 /root/lsf_hyperthreading
+  command="/root/lsf_hyperthreading"
+  sh $command && (crontab -l 2>/dev/null; echo "@reboot $command") | crontab -
 fi
 echo "EGO_DEFINE_NCPUS=${ego_define_ncpus}" >> $LSF_CONF_FILE
 
@@ -161,7 +170,7 @@ fi
 cat <<EOT >> $LSF_CONF_FILE
 LSB_RC_EXTERNAL_HOST_IDLE_TIME=10
 LSF_DYNAMIC_HOST_TIMEOUT=24
-LSB_RC_EXTERNAL_HOST_FLAG="icgen2host"
+LSB_RC_EXTERNAL_HOST_FLAG="icgen2host cloudhpchost"
 LSB_RC_UPDATE_INTERVAL=15
 LSB_RC_MAX_NEWDEMAND=50
 LSF_UDP_TO_TCP_THRESHOLD=9000
@@ -312,6 +321,8 @@ env >> \$logfile
 HostIP=\$(hostname -I | awk '{print \$1}')
 hostname=\${cluster_prefix}-\${HostIP//./-}
 hostnamectl set-hostname \$hostname
+systemctl stop firewalld
+systemctl status firewalld
 
 # Setup Network configuration
 # Change the MTU setting as this is required for setting mtu as 9000 for communication to happen between clusters
@@ -489,6 +500,9 @@ sudo /opt/ibm/lsf/10.1/install/hostsetup --top="/opt/ibm/lsf_worker/" --setuid
 echo "Added LSF administrators to start LSF daemons" >> \$logfile
 cat /opt/ibm/lsf/conf/hosts >> /etc/hosts
 
+# Install LSF as a service and start up
+/opt/ibm/lsf_worker/10.1/install/hostsetup --top="/opt/ibm/lsf_worker" --boot="y" --start="y" --dynamic 2>&1 >> $logfile
+
 # Setting up the LDAP configuration
 if [ "\$enable_ldap" = "true" ]; then
 
@@ -647,9 +661,6 @@ EOF
 fi
 
 # Startup lsf daemons
-lsf_daemons start &
-sleep 5
-lsf_daemons status >> \$logfile
 echo "END \$(date '+%Y-%m-%d %H:%M:%S')" >> \$logfile
 EOT
 
@@ -684,13 +695,16 @@ LSF_STARTUP_PATH=$LSF_TOP_VERSION/linux3.10-glibc2.17-x86_64/etc/
 EOT
 chmod 600 /etc/lsf.sudoers
 ls -l /etc/lsf.sudoers
-sudo /opt/ibm/lsf/10.1/install/hostsetup --top="/opt/ibm/lsf/" --setuid
-echo "Added LSF administrators to start LSF daemons" >> $logfile
 
-# Startup lsf daemons
-lsf_daemons start &
-sleep 5
-lsf_daemons status >> $logfile
+echo $LSF_TOP_VERSION
+echo ${LSF_TOP_VERSION}
+echo "getting into the hostsetup configuration"
+/opt/ibm/lsf/10.1/install/hostsetup --top=/opt/ibm/lsf --setuid
+echo "Added LSF administrators to start LSF daemons"
+
+echo "getting into the conigure lsfd configuration"
+/opt/ibm/lsf/10.1/install/hostsetup --top=/opt/ibm/lsf --boot="y" --start="y"
+systemctl status lsfd
 
 if [ "$spectrum_scale" == true ]; then
   echo "Entering sleep mode to update Network Manager"
