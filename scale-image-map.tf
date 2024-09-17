@@ -1,16 +1,17 @@
 # This mapping file has entries for scale storage node images.
 locals {
   scale_image_region_map = {
-    "hpcc-scale5193-rhel88" = {
-      "eu-gb" = "r018-d9767d47-be92-4854-8f8b-ac3c9c568f6f"
-      "eu-de" = "r010-5536f489-989b-45cd-ad09-3d950d71fdfb"
-      "us-east" = "r014-0af1e16f-10ec-4cb5-8327-8a98b50a4a20"
-      "us-south" = "r006-d9abf22e-706e-490d-aac1-3574e96d77e6"
-      "jp-tok" = "r022-d3566ef3-39b1-4174-8724-e421956cba9c"
-      "jp-osa" = "r034-25df9173-e947-4a43-81dc-0cf393671e4a"
-      "au-syd" = "r026-f1e8a393-b4c4-48db-bd85-ebe809a57ab3"
-      "br-sao" = "r042-f5d9533e-04d8-442f-a1b0-ec5c3454b07c"
-      "ca-tor" = "r038-9a14f386-b4a9-4da2-ab00-d0f1c8a39d55"
+    "hpcc-scale5201-rhel88" = {
+      "au-syd"   = "r026-1b434bb0-22ca-4d22-8ab8-5f894e742b03"
+      "br-sao"   = "r042-d60bf44d-544c-406b-9eb7-e8aaa74f11cf"
+      "ca-tor"   = "r038-91f4e2f0-cef5-4e9c-b321-4450f57ec1e3"
+      "eu-de"    = "r010-50ca7e47-2a99-45c5-a8c0-e87df64e55c3"
+      "eu-es"    = "r050-1068a31b-66e9-45af-b689-812c63a32ff9"
+      "eu-gb"    = "r018-cb74b034-7570-47ce-9056-a8a50b1f9c09"
+      "jp-osa"   = "r034-a10f08b9-b82c-470d-8e8c-5cc8abd048d5"
+      "jp-tok"   = "r022-a23c1c17-1f75-4407-98ad-7b55471f5325"
+      "us-east"  = "r014-3bdeef85-499e-479a-bbf5-60f0549a6003"
+      "us-south" = "r006-5bdaae02-1392-4374-8eea-96f964c00adb"
     }
   }
 }

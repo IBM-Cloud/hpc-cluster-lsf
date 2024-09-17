@@ -147,7 +147,7 @@ module "login_vsi" {
   source             = "./resources/ibmcloud/compute/management_node_vsi"
   count              = 1
   vsi_name           = "${var.cluster_prefix}-login"
-  image              = local.compute_image_mapping_entry_found ? local.new_compute_image_id : data.ibm_is_image.image[0].id
+  image              = local.compute_image_mapping_entry_found ? local.new_compute_image_id : data.ibm_is_image.compute[0].id
   profile            = data.ibm_is_instance_profile.management_host.name
   vpc                = data.ibm_is_vpc.vpc.id
   zone               = data.ibm_is_zone.zone.name
@@ -345,7 +345,7 @@ module "worker_vsi" {
   source             = "./resources/ibmcloud/compute/worker_vsi"
   count              = var.worker_node_min_count
   vsi_name           = "${var.cluster_prefix}-worker-${count.index}"
-  image              = local.compute_image_mapping_entry_found ? local.new_compute_image_id : data.ibm_is_image.image[0].id
+  image              = local.compute_image_mapping_entry_found ? local.new_compute_image_id : data.ibm_is_image.compute[0].id
   profile            = data.ibm_is_instance_profile.worker.name
   vpc                = data.ibm_is_vpc.vpc.id
   zone               = data.ibm_is_zone.zone.name
@@ -443,6 +443,13 @@ module "vpn_connection" {
   admin_state_up    = true
   local_cidrs       = var.login_subnet_id != "" ? [data.ibm_is_subnet.existing_login_subnet[0].ipv4_cidr_block] : [module.login_subnet[0].ipv4_cidr_block]
   peer_cidrs        = local.peer_cidr_list
+}
+
+#create iam authorisation between cos bucket and vpc flow logs
+module "iam_vpc_flow_logs" {
+  source                         = "./resources/ibmcloud/network/vpc_flow_log_iam"
+  count                          = (var.enable_vpc_flow_logs) ? 1 : 0
+  existing_storage_instance_guid = var.existing_cos_instance_guid
 }
 
 # Create VPC flow logs collector

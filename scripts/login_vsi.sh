@@ -69,6 +69,22 @@ elif grep -q "NAME=\"Ubuntu\"" /etc/os-release; then
     fi
 fi
 
+echo "$hyperthreading"
+if [ "$hyperthreading" == true ]; then
+  ego_define_ncpus="threads"
+else
+  ego_define_ncpus="cores"
+  cat << 'EOT' > /root/lsf_hyperthreading
+#!/bin/sh
+for vcpu in $(cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | cut -s -d- -f2 | cut -d- -f2 | uniq); do
+    echo "0" > "/sys/devices/system/cpu/cpu"$vcpu"/online"
+done
+EOT
+  chmod 755 /root/lsf_hyperthreading
+  command="/root/lsf_hyperthreading"
+  sh $command && (crontab -l 2>/dev/null; echo "@reboot $command") | crontab -
+fi
+
 # Setup LSF
 echo "Setting LSF share." >> $logfile
 # Setup file share

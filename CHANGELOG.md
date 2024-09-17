@@ -1,5 +1,10 @@
 # **CHANGELOG**
 
+## **2.3.2**
+### ENHANCEMENTS
+- Currency tile upgrade with Build 601613
+- Spectrum Scale version is updated from 5.1.9.3 to 5.2.0.1.
+
 ## **2.2.0**
 ### ENHANCEMENTS
 - LSF Cluster ID can be keyed in by users before the cluster deployment.

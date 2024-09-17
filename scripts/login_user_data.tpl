@@ -18,4 +18,5 @@ enable_ldap="${enable_ldap}"
 ldap_server_ip="${ldap_server_ip}"
 ldap_basedns="${ldap_basedns}"
 dns_domain="${dns_domain}"
+hyperthreading="${hyperthreading}"
 echo "END $(date '+%Y-%m-%d %H:%M:%S')" >> $logfile
